@@ -13,23 +13,25 @@ import static optimizer.Visuals.*;
 
 /** All mutable Swing state stays on the event dispatch thread. Search runs in SwingWorkers. */
 public final class Dashboard extends JPanel {
-    final JComboBox<SearchMethod> method=new JComboBox<>(SearchMethod.values());
+    final JComboBox<SearchMethod> method=new JComboBox<>(new SearchMethod[]{SearchMethod.HYBRID,SearchMethod.CONSTRUCTIVE,SearchMethod.RANDOM,SearchMethod.EXACT});
     final JComboBox<Evaluator.Objective> objective=new JComboBox<>(Evaluator.Objective.values());
     final JSpinner seed=spinner(2026L,Long.MIN_VALUE,Long.MAX_VALUE,1L),budget=spinner(1_000_000,1,1_000_000,10_000),
         batch=spinner(10_000,1,1_000_000,1_000),patience=spinner(3,0,100,1),minimum=spinner(2,0,3,1),alpha=spinner(.75,0.,1.,.05),
-        runs=spinner(10,2,50,1),experimentBudget=spinner(50_000,1000,1_000_000,10_000);
+        runs=spinner(20,20,20,1),experimentBudget=spinner(50_000,1000,1_000_000,10_000);
     final JButton run=button("Run optimizer",BLUE),stop=button("Stop",INK),export=button("Export run",INK),
         compare=button("Compare methods",BLUE),sweep=button("Run trade-off sweep",TEAL),load=button("Load CSV folder",INK),reset=button("Restore supplied data",INK),saveData=button("Save input CSVs",INK),exportTrials=button("Export experiments",INK);
     final JLabel delay=new JLabel("--"),checked=new JLabel("0"),unique=new JLabel("0.000%"),feasible=new JLabel("0"),elapsed=new JLabel("0 ms");
     final JLabel status=new JLabel("Ready. Select a method and run a reproducible search."),space=new JLabel();
     final JProgressBar progress=new JProgressBar(0,100);
     final Placement placement=new Placement();final Convergence chart=new Convergence();final TradePlot tradePlot=new TradePlot();
-    final DefaultTableModel serverInput=model(true,"Server","CPU cores","RAM GB","Storage GB","Latency ms","Demo cost / CPU"),
+    final DefaultTableModel serverInput=model(true,"Server","CPU cores","RAM GB","Storage GB","Latency ms","Illustrative units / core / period"),
         serviceInput=model(true,"Service","CPU cores","RAM GB","Storage GB","Service latency ms"),
         assignment=model(false,"Service","Assigned server","CPU cores","RAM GB","Storage GB","Service ms","Total delay ms"),
         trialModel=model(false,"Seed","Method","Score","Delay ms","Unique","Feasible","Time ms"),
-        tradeModel=model(false,"Delay priority alpha","Delay ms","Demo cost","Sampled nondominated?");
+        tradeModel=model(false,"Delay priority alpha","Delay ms","Illustrative cost units / period","Sampled nondominated?");
+    final DefaultTableModel summaryModel=model(false,"Protocol","Method","Score unit","Best","Mean","Worst","Success rate % (feasible)","Mean evaluations","Mean space %","Mean runtime ms","Gap to Exact %","Proven optimal?","Confidence");
     final JTable serverTable=table(serverInput),serviceTable=table(serviceInput);
+    final JTextArea recordView=new JTextArea();
     final JTextArea explanation=new JTextArea(),experimentSummary=new JTextArea();
     ProblemData data=ProblemData.demo();Evaluator lastEvaluator;SearchResult lastResult;List<ExperimentRunner.Trial> trials=List.of();
     List<Trade> trades=new ArrayList<>();Evaluator experimentEvaluator;final AtomicBoolean cancel=new AtomicBoolean();boolean busy;
@@ -75,6 +77,7 @@ public final class Dashboard extends JPanel {
         JTabbedPane results=new JTabbedPane();results.setFont(new Font("SansSerif",Font.BOLD,13));
         results.addTab("Search history and details",evidence);
         results.addTab("Service assignments",scrollTable(table(assignment)));
+        results.addTab("Experiment record",new JScrollPane(recordView));
         center.add(results,BorderLayout.CENTER);tab.add(center,BorderLayout.CENTER);return tab;
     }
     private JPanel dataTab(){
@@ -88,12 +91,13 @@ public final class Dashboard extends JPanel {
     private JPanel experimentsTab(){
         JPanel tab=tabPanel();JPanel controls=flow();addField(controls,"Paired seeds",runs);addField(controls,"Evaluations / method",experimentBudget);controls.add(compare);controls.add(sweep);controls.add(exportTrials);tab.add(controls,BorderLayout.NORTH);
         JTabbedPane tabs=new JTabbedPane();JPanel comparison=panel(new BorderLayout(8,8));comparison.add(scrollTable(table(trialModel)),BorderLayout.CENTER);
-        experimentSummary.setEditable(false);experimentSummary.setRows(7);experimentSummary.setFont(new Font("Monospaced",Font.PLAIN,12));experimentSummary.setText("Comparison uses identical inputs, paired seeds and the same full evaluation budget.\nEarly stopping is disabled. All three methods use the same evaluator.\nReport several runs, feasibility, solution quality and runtime. A single win proves little.");comparison.add(new JScrollPane(experimentSummary),BorderLayout.SOUTH);tabs.addTab("Repeated-seed comparison",comparison);
+        experimentSummary.setEditable(false);experimentSummary.setRows(4);experimentSummary.setFont(new Font("Monospaced",Font.PLAIN,12));experimentSummary.setText("Comparison uses identical inputs, paired seeds and the same full evaluation budget.\nEarly stopping is disabled. All three methods use the same evaluator.\nReport several runs, feasibility, solution quality and runtime. A single win proves little.");comparison.add(new JScrollPane(experimentSummary),BorderLayout.SOUTH);tabs.addTab("Repeated-seed comparison",comparison);
+        JTable summaryTable=table(summaryModel);summaryTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);for(int c=0;c<summaryTable.getColumnCount();c++)summaryTable.getColumnModel().getColumn(c).setPreferredWidth(155);tabs.addTab("Quality / Time / Confidence",scrollTable(summaryTable));
         JPanel trade=panel(new BorderLayout(8,8));trade.add(new JLabel("11 priority settings, 20,000 evaluations each. Lower cost and delay are preferred. This is an approximate sampled frontier."),BorderLayout.NORTH);
         trade.add(tradePlot,BorderLayout.CENTER);JScrollPane table=scrollTable(table(tradeModel));table.setPreferredSize(new Dimension(100,200));trade.add(table,BorderLayout.SOUTH);tabs.addTab("Cost and delay",trade);tab.add(tabs,BorderLayout.CENTER);return tab;
     }
     private JComponent guideTab(){
-        JEditorPane guide=new JEditorPane("text/html",LectureGuide.html());guide.setEditable(false);guide.setCaretPosition(0);return new JScrollPane(guide);
+        JEditorPane guide=new JEditorPane("text/html",LectureGuide.html());guide.setEditable(false);guide.setCaretPosition(0);JPanel panel=new JPanel(new BorderLayout());panel.add(new JScrollPane(guide),BorderLayout.CENTER);panel.add(new Growth(),BorderLayout.SOUTH);return panel;
     }
     void loadDataForPreview(ProblemData d){loadData(d);}
     private void loadData(ProblemData d){
@@ -116,10 +120,10 @@ public final class Dashboard extends JPanel {
     private void start(){
         try{
             Evaluator evaluator=evaluator();SearchConfig settings=config();SearchMethod selected=(SearchMethod)method.getSelectedItem();cancel.set(false);setBusy(true);progress.setValue(0);status.setText("Searching with seed "+settings.seed()+"...");
-            placement.set(data,null,null);chart.set(List.of(),scoreLabel(evaluator));assignment.setRowCount(0);delay.setText("--");checked.setText("0");unique.setText("0.000%");feasible.setText("0");elapsed.setText("0 ms");
+            placement.set(data,null,null);chart.set(List.of(),scoreLabel(evaluator),evaluator.optimisticBound());assignment.setRowCount(0);delay.setText("--");checked.setText("0");unique.setText("0.000%");feasible.setText("0");elapsed.setText("0 ms");
             new SwingWorker<SearchResult,Optimizer.Progress>(){
                 protected SearchResult doInBackground(){return new Optimizer().run(evaluator,selected,settings,this::publish,cancel::get);}
-                protected void process(List<Optimizer.Progress> updates){var p=updates.get(updates.size()-1);showProgress(evaluator,p,settings.budget());}
+                protected void process(List<Optimizer.Progress> updates){var p=updates.get(updates.size()-1);showProgress(evaluator,p,selected==SearchMethod.EXACT?(int)evaluator.data.searchSpace():settings.budget());}
                 protected void done(){try{lastResult=get();lastEvaluator=evaluator;displayResult(evaluator,lastResult);}catch(Exception ex){error(ex);}finally{setBusy(false);}}
             }.execute();
         }catch(Exception ex){error(ex);}
@@ -127,17 +131,20 @@ public final class Dashboard extends JPanel {
     private void showProgress(Evaluator e,Optimizer.Progress p,int max){
         delay.setText(p.evaluation()==null?"--":format(p.evaluation().delayMs())+" ms");checked.setText(String.format(Locale.ROOT,"%,d",p.evaluations()));
         unique.setText(String.format(Locale.ROOT,"%.3f%%",100.*p.unique()/e.data.searchSpace()));feasible.setText(String.format(Locale.ROOT,"%,d",p.feasible()));elapsed.setText(p.milliseconds()+" ms");
-        placement.set(e.data,p.best(),p.evaluation());chart.set(p.trace(),scoreLabel(e));progress.setValue((int)(100L*p.evaluations()/max));progress.setString(String.format(Locale.ROOT,"%,d / %,d",p.evaluations(),max));
+        placement.set(e.data,p.best(),p.evaluation());chart.set(p.trace(),scoreLabel(e),e.optimisticBound());progress.setValue((int)(100L*p.evaluations()/max));progress.setString(String.format(Locale.ROOT,"%,d / %,d",p.evaluations(),max));
     }
     public void displayResult(Evaluator e,SearchResult r){
-        showProgress(e,new Optimizer.Progress(r.evaluations(),r.feasible(),r.unique(),r.restarts(),r.best(),r.evaluation(),r.milliseconds(),"Finished",r.trace()),r.config().budget());
+        showProgress(e,new Optimizer.Progress(r.evaluations(),r.feasible(),r.unique(),r.restarts(),r.best(),r.evaluation(),r.milliseconds(),"Finished",r.trace()),r.method()==SearchMethod.EXACT?(int)e.data.searchSpace():r.config().budget());
+        recordView.setEditable(false);recordView.setLineWrap(true);recordView.setWrapStyleWord(true);
+        recordView.setText(RunRecords.HEADER+"\n\n"+RunRecords.row(e,r)+"\n\nAutomatically saved to results/run-records.csv. Export run includes experiment_record.csv.");
         assignment.setRowCount(0);String text="Method: "+r.method()+"\nStop: "+r.stopReason()+"\n";
         if(r.best()!=null){
             for(int i=0;i<e.data.services().size();i++){var s=e.data.services().get(i);var host=e.data.servers().get(r.best().server(i));assignment.addRow(new Object[]{s.name(),host.name(),s.cpu(),s.ram(),s.storage(),s.latencyValue(),e.objective==Evaluator.Objective.WEIGHTED?"weight mode":s.latencyValue()+host.latencyMs()});}
-            text+="\nAll mandatory constraints satisfied.\nScore: "+format(r.evaluation().score())+"\nDelay: "+format(r.evaluation().delayMs())+" ms. Demo cost: "+format(r.evaluation().cost())+"\nOptimistic bound: "+format(e.optimisticBound())+" (ignores capacity/count rules).\n";
+            text+="\nAll mandatory constraints satisfied.\nScore: "+format(r.evaluation().score())+" "+RunRecords.unit(e)+"\nDelay: "+format(r.evaluation().delayMs())+" ms. Illustrative cost: "+format(r.evaluation().cost())+" cost units / period\nOptimistic bound: "+format(e.optimisticBound())+" "+RunRecords.unit(e)+" (ignores capacity/count rules).\n";
         }else text+="\nNo feasible solution found. A search failure alone does not prove infeasibility.\n";
         text+="\n"+r.unique()+" distinct candidates, "+(r.evaluations()-r.unique())+" repeated evaluations.\nConstruction attempts: "+r.constructions()+", abandoned: "+r.failedConstructions()+".\nBest found under this budget. Global optimality is not certified.";
-        explanation.setText(text);explanation.setCaretPosition(0);status.setText(r.stopReason()+". Seed "+r.config().seed()+". Best found, no global optimality certificate.");progress.setString("Stopped at "+r.evaluations()+" evaluations");
+        if(RunRecords.proven(r)) text=text.replace("Best found under this budget. Global optimality is not certified.","Proven optimal by complete enumeration (or proven infeasible if no feasible assignment).");
+        explanation.setText(text);explanation.setCaretPosition(0);status.setText(r.stopReason()+(r.method()==SearchMethod.EXACT?". No seed. ":". Seed "+r.config().seed()+". ")+(RunRecords.proven(r)?"Proven by complete enumeration.":"Best found, no global optimality certificate."));progress.setString("Stopped at "+r.evaluations()+" evaluations");
     }
     private void compare(){
         try{
@@ -146,19 +153,16 @@ public final class Dashboard extends JPanel {
             new SwingWorker<List<ExperimentRunner.Trial>,ExperimentRunner.Trial>(){
                 int finished;
                 protected List<ExperimentRunner.Trial> doInBackground(){return ExperimentRunner.compare(e,first,count,max,this::publish,cancel::get);}
-                protected void process(List<ExperimentRunner.Trial> items){for(var t:items){var r=t.result();var v=r.evaluation();trialModel.addRow(new Object[]{t.seed(),t.method(),v==null?"NA":format(v.score()),v==null?"NA":format(v.delayMs()),r.unique(),r.feasible(),r.milliseconds()});finished++;}progress.setValue(100*finished/(count*3));progress.setString(finished+" / "+(count*3)+" runs");}
+                protected void process(List<ExperimentRunner.Trial> items){for(var t:items){var r=t.result();var v=r.evaluation();trialModel.addRow(new Object[]{t.method()==SearchMethod.EXACT?"NA":t.seed(),t.method()+" / "+t.protocol(),v==null?"NA":format(v.score())+" "+RunRecords.unit(e),v==null?"NA":format(v.delayMs()),r.unique(),r.feasible(),r.milliseconds()});finished++;}progress.setValue(100*finished/(count*5+1));progress.setString(finished+" / "+(count*5+1)+" runs");}
                 protected void done(){try{trials=get();experimentEvaluator=e;showSummary();status.setText("Experiment complete: "+trials.size()+" runs. Compare quality and runtime together.");}catch(Exception ex){error(ex);}finally{setBusy(false);}}
             }.execute();
         }catch(Exception ex){error(ex);}
     }
     private void showSummary(){
-        StringBuilder b=new StringBuilder("METHOD                              FEASIBLE      MEAN SCORE       BEST        SAMPLE SD\n");
-        for(var m:SearchMethod.values()){
-            var list=trials.stream().filter(t->t.method()==m).toList();double[] values=list.stream().filter(t->t.result().evaluation()!=null).mapToDouble(t->t.result().evaluation().score()).toArray();double mean=Arrays.stream(values).average().orElse(Double.NaN),ss=0;for(double v:values)ss+=(v-mean)*(v-mean);
-            b.append(String.format(Locale.ROOT,"%-35s %2d / %-3d %12.4f %12.4f %12.4f%n",m.name(),values.length,list.size(),mean,Arrays.stream(values).min().orElse(Double.NaN),values.length<2?Double.NaN:Math.sqrt(ss/(values.length-1))));
-        }
-        b.append("\nPatience disabled for equal budgets. Runtime depends on construction overhead, JVM warmup and hardware.\nThis experiment supports comparison on this instance; it does not prove a universally best method.");experimentSummary.setText(b.toString());
+        summaryModel.setRowCount(0);String[] rows=ExperimentRunner.summary(experimentEvaluator,trials).split("\n");for(int i=1;i<rows.length;i++)summaryModel.addRow(CsvFiles.parse(rows[i]).toArray());
+        experimentSummary.setText("Quality / Time / Confidence and final summary (CSV; export for spreadsheet use)\n"+ExperimentRunner.summary(experimentEvaluator,trials)+"\nSuccess rate = feasible runs / attempted runs. % of space = distinct candidates / complete assignments.\nExact has no seed. Each stochastic protocol uses the same 20 seeds; objectives are kept separate.");
     }
+
     private void sweep(){
         try{
             ProblemData d=readData();int min=((Number)minimum.getValue()).intValue();long base=((Number)seed.getValue()).longValue();cancel.set(false);setBusy(true);tradeModel.setRowCount(0);trades=new ArrayList<>();status.setText("Sampling cost / delay trade-offs...");
@@ -176,7 +180,7 @@ public final class Dashboard extends JPanel {
     private void chooseLoad(){Path p=directory("Load a folder containing servers.csv and services.csv");if(p==null)return;try{var next=CsvFiles.read(p);if(next.servers().size()!=4||next.services().size()!=12)throw new IllegalArgumentException("Dashboard requires 4 servers and 12 services");data=next;loadData(data);status.setText("Loaded inputs. Run to evaluate the new data.");}catch(Exception ex){error(ex);}}
     private void saveInputs(){Path p=directory("Select a folder; save creates a new inputs subfolder");if(p==null)return;try{CsvFiles.writeData(p.resolve("inputs-"+System.currentTimeMillis()),readData());status.setText("Input CSVs saved.");}catch(Exception ex){error(ex);}}
     private void error(Exception ex){Throwable cause=ex.getCause()==null?ex:ex.getCause();status.setText("Error: "+cause.getMessage());if(!GraphicsEnvironment.isHeadless())JOptionPane.showMessageDialog(this,cause.getMessage(),"Please check inputs",JOptionPane.ERROR_MESSAGE);}
-    static String scoreLabel(Evaluator e){return switch(e.objective){case LATENCY,WEIGHTED->"Delay (ms)";case COST->"Illustrative cost";case BALANCED->"Normalized compromise score";};}
+    static String scoreLabel(Evaluator e){return switch(e.objective){case LATENCY,WEIGHTED->"Delay (ms)";case COST->"Illustrative cost units / period";case BALANCED->"Compromise (dimensionless)";};}
     static double value(DefaultTableModel model,int r,int c){return Double.parseDouble(String.valueOf(model.getValueAt(r,c)).strip());}
     static String format(double value){return String.format(Locale.ROOT,"%.3f",value);}
     static JSpinner spinner(Number value,Comparable<?> min,Comparable<?> max,Number step){JSpinner s=new JSpinner(new SpinnerNumberModel(value,min,max,step));s.setPreferredSize(new Dimension(value instanceof Long?100:85,29));return s;}

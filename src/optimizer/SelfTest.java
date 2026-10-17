@@ -30,7 +30,7 @@ public final class SelfTest {
         var equality=new ProblemData("equality",List.of(new ProblemData.Server("s",7,4,25,1,1)),d.services());check(new Evaluator(equality,0,Evaluator.Objective.LATENCY,.5).evaluate(new Candidate(new int[]{0,0,0})).feasible(),"Capacity equality accepted");
         var over=new ProblemData("overload",List.of(new ProblemData.Server("s",6,3,24,1,1)),d.services());var bad=new Evaluator(over,0,Evaluator.Objective.LATENCY,.5).evaluate(new Candidate(new int[]{0,0,0}));check(!bad.feasible()&&bad.violations().size()==3,"Three resource constraints independently checked");
         var opt=new Optimizer();
-        for(var method:SearchMethod.values()){
+        for(var method:new SearchMethod[]{SearchMethod.HYBRID,SearchMethod.CONSTRUCTIVE,SearchMethod.RANDOM}){
             var c=new SearchConfig(2026,2000,100,0,.35);var one=opt.run(e,method,c,null,()->false);var two=opt.run(e,method,c,null,()->false);
             check(one.evaluations()==2000,"Full evaluation budget "+method);check(one.best()!=null,"Feasible result "+method);
             check(Arrays.equals(one.best().copy(),two.best().copy())&&one.unique()==two.unique(),"Seed reproducibility "+method);
@@ -39,6 +39,18 @@ public final class SelfTest {
             for(var point:one.trace()){check(point.score()<=prev+1e-10,"Monotone incumbent trace");prev=point.score();}
             var oneEval=opt.run(e,method,new SearchConfig(1,1,100,3,.35),null,()->false);check(oneEval.evaluations()==1,"Budget of one respected");
         }
+        var exact=opt.run(e,SearchMethod.EXACT,new SearchConfig(0,1,100,0,.35),null,()->false);
+        check(RunRecords.proven(exact)&&exact.evaluations()==8,"Exact ignores stochastic budget and enumerates all assignments");close(exact.evaluation().score(),12,"Exact toy optimum");
+        var comparison=ExperimentRunner.compare(e,100,20,200,null,()->false);
+        check(comparison.size()==101,"One Exact plus 20 seeds across five stochastic protocol rows");
+        check(comparison.stream().filter(t->t.method()==SearchMethod.EXACT).count()==1,"Exact runs once without paired seeds");
+        for(long pairedSeed=100;pairedSeed<120;pairedSeed++) {
+            final long expected=pairedSeed;
+            var pair=comparison.stream().filter(t->t.seed()==expected&&!t.protocol().equals("equal budget")).toList();
+            check(pair.size()==2&&pair.get(0).result().evaluations()==pair.get(1).result().evaluations(),"Matched natural-stop budgets");
+        }
+        check(ExperimentRunner.summary(e,comparison).contains("proven")&&ExperimentRunner.summary(e,comparison).contains("ms"),"Summary contains confidence and units");
+        var cancelledExact=opt.run(e,SearchMethod.EXACT,SearchConfig.defaults(),null,()->true);check(!RunRecords.proven(cancelledExact),"Cancelled Exact has no certificate");
         var stop=opt.run(e,SearchMethod.HYBRID,new SearchConfig(2026,10_000,100,2,.35),null,()->false);
         check(stop.evaluations()<10_000&&stop.evaluations()%100==0&&stop.stopReason().contains("batches"),"Complete-batch early stopping");
         var cancel=opt.run(e,SearchMethod.RANDOM,SearchConfig.defaults(),null,()->true);check(cancel.evaluations()==0&&cancel.stopReason().contains("Cancelled"),"Cancellation");
@@ -51,7 +63,7 @@ public final class SelfTest {
             var evaluator=new Evaluator(ProblemData.demo(),2,objective,.75);var r=opt.run(evaluator,SearchMethod.HYBRID,new SearchConfig(2026,5000,1000,0,.35),null,()->false);
             check(r.best()!=null&&evaluator.evaluate(r.best()).feasible(),"Original data feasible "+objective);check(evaluator.optimisticBound()<=r.evaluation().score()+1e-9,"Optimistic bound "+objective);
         }
-        for(var method:SearchMethod.values()) {
+        for(var method:new SearchMethod[]{SearchMethod.HYBRID,SearchMethod.CONSTRUCTIVE,SearchMethod.RANDOM}) {
             var evaluator=new Evaluator(ProblemData.demo(),2,Evaluator.Objective.LATENCY,.75);
             var r=opt.run(evaluator,method,new SearchConfig(2026,10000,1000,0,.35),null,()->false);
             check(r.evaluations()==10000,"Original instance uses full comparison budget "+method);

@@ -21,7 +21,7 @@ The dashboard opens maximized and automatically uses 200% scaling on high-DPI Li
 1. Open **Model and data** to explain known inputs and units. Cells are editable.
 2. Keep the default service latency objective, seed 2026, and minimum two services per server.
 3. Press **Run optimizer**. Inspect placement, capacity bars, convergence, feasibility, coverage and stopping evidence.
-4. Open **Experiments**, then **Compare methods**. All methods share an evaluator and full evaluation budgets. Try ten paired seeds at 50,000 evaluations per method.
+4. Open **Experiments**, then **Compare methods**. Stochastic methods share an evaluator and full evaluation budgets; Exact enumerates the entire space without a seed. Uses 20 paired seeds at 50,000 evaluations per method.
 5. Run the optional **cost / delay sweep** to show stakeholder priorities. Its prices are explicitly illustrative.
 6. Use **Export run** or **Export experiments** to preserve reproducible evidence.
 
@@ -50,7 +50,7 @@ java -Xmx512m -jar ServerPlacementLab.jar --cli --input data --objective BALANCE
 java -Xmx512m -jar ServerPlacementLab.jar --help
 ```
 
-`--budget` counts every complete candidate evaluation, including infeasible and repeated candidates. It cannot exceed 1,000,000. `--patience 0` disables early stopping. Ordinary searches check stagnation at complete batches of 10,000 evaluations and stop after three stagnant batches. Comparisons always disable patience.
+`--budget` counts every complete candidate evaluation, including infeasible and repeated candidates. It cannot exceed 1,000,000. `--patience 0` disables early stopping. Ordinary searches check stagnation at complete batches of 10,000 evaluations and stop after three stagnant batches. The equal-budget comparison disables patience; the separate stopping-point protocol pairs Random with each hybrid run at its own stopping budget.
 
 Export folders contain the input CSV snapshot, assignment, resource usage, convergence and run metadata. Do not compare scores from different objective modes as though they measure the same quantity. CPU cost uses illustrative units per observation period.
 
@@ -68,5 +68,7 @@ Export folders contain the input CSV snapshot, assignment, resource usage, conve
 - `results/comparison-latency/`: 20 paired seeds × 3 methods × 50,000 evaluations.
 - `results/comparison-legacy-weighted/`: a separate experiment using the old interpretation, when present.
 - `results/tradeoffs/`: a saved 11-priority cost/delay sweep with illustrative prices.
+
+See [lecture activity answers and experiment definitions](docs/LECTURE_ACTIVITIES.md) and the measured [final summary](results/lecture-comparison/summary.csv). Every run automatically appends to `results/run-records.csv`. Exact enumeration can take longer than budgeted search.
 
 Both lecture decks are source material. Their classroom activities and future-week instructions describe their teaching context. This project implements the student's requested optimizer and explains their relationship to that context.

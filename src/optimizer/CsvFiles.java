@@ -16,7 +16,7 @@ public final class CsvFiles {
         }
         return joiner.toString();
     }
-    private static List<String> parse(String line) {
+    static List<String> parse(String line) {
         List<String> cells=new ArrayList<>(); StringBuilder cell=new StringBuilder(); boolean quoted=false;
         for(int i=0;i<line.length();i++) {
             char ch=line.charAt(i);
@@ -55,6 +55,7 @@ public final class CsvFiles {
     public static void export(Path directory,Evaluator evaluator,SearchResult result)throws IOException {
         Files.createDirectories(directory); writeData(directory.resolve("inputs"),evaluator.data);
         var e=result.evaluation();
+        Files.writeString(directory.resolve("experiment_record.csv"),RunRecords.HEADER+"\n"+RunRecords.row(evaluator,result)+"\n",StandardCharsets.UTF_8);
         try(var out=Files.newBufferedWriter(directory.resolve("assignment.csv"),StandardCharsets.UTF_8)) {
             out.write("service,server,cpu_cores,ram_gb,storage_gb,service_latency_or_weight,server_latency_ms\n");
             if(result.best()!=null)for(int i=0;i<evaluator.data.services().size();i++) {
@@ -68,7 +69,7 @@ public final class CsvFiles {
         List<String> metadata=new ArrayList<>();metadata.add("field,value");
         Object[][] fields={{"instance",evaluator.data.name()},{"version",Optimizer.VERSION},{"method",result.method().name()},
             {"objective",evaluator.objective.name()},{"alpha",evaluator.alpha},{"minimum_services",evaluator.minServices},
-            {"seed",result.config().seed()},{"budget",result.config().budget()},{"batch_size",result.config().batchSize()},
+            {"seed",result.method()==SearchMethod.EXACT?"NA":result.config().seed()},{"budget",result.config().budget()},{"batch_size",result.config().batchSize()},
             {"patience_batches",result.config().patience()},{"greediness",result.config().greediness()},
             {"evaluations",result.evaluations()},{"unique_candidates",result.unique()},{"feasible_evaluations",result.feasible()},
             {"construction_attempts",result.constructions()},{"failed_constructions",result.failedConstructions()},
@@ -79,11 +80,11 @@ public final class CsvFiles {
             {"os",System.getProperty("os.name")},{"arch",System.getProperty("os.arch")},
             {"processors",Runtime.getRuntime().availableProcessors()},
             {"cost_note","Illustrative prices, cost units per observation period; replace with measured tariffs"},
-            {"quality_claim","Best found; global optimality not certified"}};
+            {"feasible",e!=null},{"quality_claim",RunRecords.proven(result)?"Proven by complete enumeration":"Best found; global optimality not certified"}};
         for(Object[] field:fields)metadata.add(row(field));
         Files.write(directory.resolve("run.csv"),metadata,StandardCharsets.UTF_8);
         if(e!=null)try(var out=Files.newBufferedWriter(directory.resolve("server_usage.csv"),StandardCharsets.UTF_8)) {
-            out.write("server,count,cpu_used,cpu_capacity,ram_used,ram_capacity,storage_used,storage_capacity\n");
+            out.write("server,count,cpu_used_cores,cpu_capacity_cores,ram_used_gb,ram_capacity_gb,storage_used_gb,storage_capacity_gb\n");
             for(int s=0;s<e.usage().size();s++) {
                 var u=e.usage().get(s);var host=evaluator.data.servers().get(s);
                 out.write(row(host.name(),u.count(),u.cpu(),host.cpu(),u.ram(),host.ram(),u.storage(),host.storage())+"\n");

@@ -19,11 +19,11 @@ public final class Main {
             java -jar ServerPlacementLab.jar --compare 20 --budget 50000 --out results/comparison
             java -jar ServerPlacementLab.jar --preview preview.png
             Options: --seed 2026 --budget 1000000 --batch 10000 --patience 3 --min 2
-                     --method HYBRID|CONSTRUCTIVE|RANDOM --objective LATENCY|WEIGHTED|COST|BALANCED
+                     --method HYBRID|CONSTRUCTIVE|RANDOM|EXACT --objective LATENCY|WEIGHTED|COST|BALANCED
                      --alpha 0.75 --input data --out results/my-run
             Display: --ui-scale 1|2 (100% or 200%). High-DPI Linux displays scale automatically.
             Service latency is in ms by default. WEIGHTED reproduces the old weight interpretation.
-            Comparison runs disable patience. Cost values are illustrative only.
+            Exact enumerates the full space without a seed; comparisons include equal budgets and matched stopping budgets. Cost values are illustrative only.
             """);return;}
         if(flags.containsKey("self-test")){SelfTest.run();return;}
         if(flags.containsKey("cli")||flags.containsKey("compare")||flags.containsKey("preview")){

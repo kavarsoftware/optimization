@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 
 /** GRASP: randomized capacity-aware construction, strict local descent, independent restarts. */
 public final class Optimizer {
-    public static final String VERSION = "grasp-vnd-1.0";
+    public static final String VERSION = "grasp-vnd-1.1";
     public record Progress(int evaluations, int feasible, int unique, int restarts,
                            Candidate best, Evaluation evaluation, long milliseconds, String phase,
                            List<SearchResult.Point> trace) {}
@@ -16,7 +16,8 @@ public final class Optimizer {
         Context c = new Context(evaluator,method,config,listener,cancelled);
         String impossible = necessaryCheck(evaluator);
         if (impossible != null) c.reason = impossible;
-        while (c.running()) {
+        if (method == SearchMethod.EXACT && impossible == null) exact(c, new int[evaluator.data.services().size()], 0);
+        while (method != SearchMethod.EXACT && c.running()) {
             if (method == SearchMethod.RANDOM) {
                 int[] values = new int[evaluator.data.services().size()];
                 for (int i = 0; i < values.length; i++) values[i] = c.random.nextInt(evaluator.data.servers().size());
@@ -37,8 +38,20 @@ public final class Optimizer {
             }
         }
         c.record(); c.publish("Finished");
-        return new SearchResult(method,config,c.best,c.bestEvaluation,c.evaluations,c.feasible,c.unique,
+        SearchResult result = new SearchResult(method,config,c.best,c.bestEvaluation,c.evaluations,c.feasible,c.unique,
             c.constructions,c.failed,c.restarts,c.elapsed(),c.reason,List.copyOf(c.trace));
+        RunRecords.save(evaluator,result);
+        return result;
+    }
+    // Enumerate every complete assignment with the same evaluator; no random seed or budget cutoff.
+    private void exact(Context c, int[] values, int depth) {
+        if(c.cancelled.getAsBoolean()) { c.reason="Cancelled by user"; return; }
+        if(depth==values.length) { c.check(new Candidate(values)); return; }
+        for(int server=0;server<c.e.data.servers().size();server++) {
+            values[depth]=server; exact(c,values,depth+1);
+            if(c.cancelled.getAsBoolean()) return;
+        }
+        if(depth==0) c.reason="Exact enumeration complete";
     }
     private static String necessaryCheck(Evaluator e) {
         for (var task : e.data.services()) {
@@ -150,7 +163,7 @@ public final class Optimizer {
                 double value=best==null?Double.POSITIVE_INFINITY:bestEvaluation.score();
                 stagnant=value<checkpointBest-1e-10?0:stagnant+1;
                 checkpointBest=value;
-                if (best!=null && config.patience()>0 && stagnant>=config.patience()) reason="No global improvement in "+stagnant+" complete batches";
+                if (best!=null && method != SearchMethod.EXACT && config.patience()>0 && stagnant>=config.patience()) reason="No global improvement in "+stagnant+" complete batches";
                 record(); publish("Searching");
             }
             return evaluation;

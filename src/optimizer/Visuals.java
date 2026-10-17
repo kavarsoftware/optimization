@@ -37,9 +37,9 @@ public final class Visuals {
                 text(g,latency,x+width-82,36,15,color,true);
                 var u=evaluation==null?new Evaluation.Usage(0,0,0,0):evaluation.usage().get(s);
                 text(g,u.count()+" SERVICES",x+18,63,11,MUTED,true);
-                bar(g,x+18,82,width-36,"CPU",u.cpu(),host.cpu(),color);
-                bar(g,x+18,116,width-36,"RAM",u.ram(),host.ram(),color);
-                bar(g,x+18,150,width-36,"Storage",u.storage(),host.storage(),color);
+                bar(g,x+18,82,width-36,"CPU cores",u.cpu(),host.cpu(),color);
+                bar(g,x+18,116,width-36,"RAM GB",u.ram(),host.ram(),color);
+                bar(g,x+18,150,width-36,"Storage GB",u.storage(),host.storage(),color);
                 int chipX=x+18,chipY=193;
                 if(candidate==null)text(g,"Waiting for a feasible placement",x+18,207,12,MUTED,false);
                 else for(int i=0;i<candidate.size();i++)if(candidate.server(i)==s){
@@ -60,21 +60,24 @@ public final class Visuals {
         }
     }
     public static class Convergence extends JPanel {
+        double bound=Double.NaN;
         List<SearchResult.Point> points=List.of();String scoreLabel="Average delay (ms)";
         public Convergence(){setBackground(Color.WHITE);setPreferredSize(new Dimension(760,210));}
-        public void set(List<SearchResult.Point> points,String label){this.points=List.copyOf(points);scoreLabel=label;repaint();}
+        public void set(List<SearchResult.Point> points,String label,double bound){this.bound=bound;this.points=List.copyOf(points);scoreLabel=label;repaint();}
         @Override protected void paintComponent(Graphics graphics){
             super.paintComponent(graphics);Graphics2D g=(Graphics2D)graphics.create();quality(g);
             int left=72,right=getWidth()-24,top=40,bottom=getHeight()-36;
             text(g,"BEST FOUND SO FAR",18,23,11,MUTED,true);
             if(points.isEmpty()){text(g,"Run the optimizer to see its search history",left,110,14,MUTED,false);g.dispose();return;}
             double low=points.stream().mapToDouble(SearchResult.Point::score).min().orElse(0),high=points.stream().mapToDouble(SearchResult.Point::score).max().orElse(1);
+            if(Double.isFinite(bound))low=Math.min(low,bound);
             double pad=Math.max(.01,(high-low)*.18);low-=pad;high+=pad;
             int maxX=Math.max(1,points.get(points.size()-1).evaluations());
             for(int k=0;k<=3;k++){
                 int y=top+(bottom-top)*k/3;g.setColor(LINE);g.drawLine(left,y,right,y);
                 text(g,String.format(Locale.ROOT,"%.2f",high-(high-low)*k/3),8,y+4,11,MUTED,false);
             }
+            if(Double.isFinite(bound)){int y=bottom-(int)((bottom-top)*(bound-low)/(high-low));g.setColor(TEAL);g.setStroke(new BasicStroke(1.5f,BasicStroke.CAP_BUTT,BasicStroke.JOIN_MITER,10,new float[]{6,5},0));g.drawLine(left,y,right,y);text(g,"Optimistic lower bound (ignores capacity/counts)",left+8,y-5,10,TEAL,false);}
             Path2D path=new Path2D.Double();boolean first=true;double previousY=0;
             for(var p:points){double x=left+(right-left)*p.evaluations()/(double)maxX,y=bottom-(bottom-top)*(p.score()-low)/(high-low);
                 if(first){path.moveTo(x,y);first=false;}else{path.lineTo(x,previousY);path.lineTo(x,y);}previousY=y;}
@@ -82,6 +85,18 @@ public final class Visuals {
             text(g,"0",left,bottom+20,11,MUTED,false);
             String label=String.format(Locale.ROOT,"%,d evaluations",maxX);text(g,label,right-140,bottom+20,11,MUTED,false);
             text(g,scoreLabel,left+12,top-9,11,MUTED,false);g.dispose();
+        }
+    }
+    public static class Growth extends JPanel {
+        public Growth(){setPreferredSize(new Dimension(700,200));setBackground(Color.WHITE);}
+        @Override protected void paintComponent(Graphics graphics){
+            super.paintComponent(graphics);Graphics2D g=(Graphics2D)graphics.create();quality(g);
+            text(g,"COMBINATORIAL GROWTH: 4^n assignments (log10 scale)",20,22,13,INK,true);
+            int left=85,right=getWidth()-40,top=43,bottom=getHeight()-35;
+            for(int k=0;k<=7;k++){int y=bottom-(bottom-top)*k/8;g.setColor(LINE);g.drawLine(left,y,right,y);text(g,"10^"+k,20,y+4,11,MUTED,false);}
+            int px=0,py=0;
+            for(int n=1;n<=12;n++){int x=left+(right-left)*(n-1)/11,y=bottom-(int)((bottom-top)*Math.log10(Math.pow(4,n))/8);g.setColor(BLUE);if(n>1)g.drawLine(px,py,x,y);g.setColor(n==12?TEAL:BLUE);g.fillOval(x-4,y-4,8,8);text(g,""+n,x-5,bottom+18,11,MUTED,false);px=x;py=y;}
+            text(g,"n = 12: 16,777,216 assignments",right-245,top,12,TEAL,true);text(g,"n (services)",left+20,top,11,MUTED,false);g.dispose();
         }
     }
     public record Trade(double alpha,double delay,double cost) {}
@@ -105,7 +120,7 @@ public final class Visuals {
             }
             for(var p:points){int x=left+(int)((right-left)*(p.cost()-xMin)/(xMax-xMin)),y=bottom-(int)((bottom-top)*(p.delay()-yMin)/(yMax-yMin));
                 g.setColor(dominated(p,points)?new Color(181,190,203):TEAL);g.fillOval(x-6,y-6,12,12);}
-            text(g,"Illustrative cost (lower is better)",left+50,bottom+44,12,MUTED,false);
+            text(g,"Illustrative cost units / period (lower is better)",left+50,bottom+44,12,MUTED,false);
             text(g,"Delay in ms",left,top-8,11,MUTED,false);
             text(g,"Green = nondominated among sampled results",left+110,top-8,11,TEAL,false);g.dispose();
         }

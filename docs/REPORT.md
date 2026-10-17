@@ -259,3 +259,20 @@ With a cap of `B` evaluation calls, evaluation work is at most `O(B(n+m))`, plus
 Week 1's course map names later 1D/gradient/linear programming, integer/dynamic programming, genetic algorithm, simulated annealing, particle swarm and multi-objective topics. It does not teach complete implementations of all of them. This discrete placement project discusses method suitability and includes a sampled trade-off experiment. It makes no claim to implement all future course methods.
 
 The standard GRASP name describes the implementation structure. The supplied lectures establish the modeling, method-family and experimental principles. GRASP itself is a project design choice extending those foundations.
+
+## Lecture evidence update
+
+A complete Exact enumeration now evaluates all 16,777,216 assignments with the shared evaluator and proves the default instance optimum is **27.75 ms**. Earlier sections describe the original budgeted experiment; their best-found qualification still applies to the heuristic itself. Matching an independently proved optimum does not make a heuristic run an exact proof.
+
+The updated final summary below is generated from `results/lecture-comparison/summary.csv`. Each stochastic row has 20 runs (seeds 2026 through 2045). All scores in this table use the default average-delay objective in ms. Success means a feasible result; evaluations, space coverage and runtime are per-run means. Timing is hardware/JVM dependent.
+
+| Method / protocol | Best (ms) | Mean (ms) | Worst (ms) | Success rate (%) | Evaluations (calls) | Space visited (%) | Runtime (ms) | Proven optimal? |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Exact / complete enumeration | 27.75 | 27.75 | 27.75 | 100 | 16,777,216 | 100 | 5549.00 | Yes |
+| Hybrid / equal budget | 27.75 | 27.75 | 27.75 | 100 | 50,000 | 0.207291 | 18.95 | No; best found |
+| Constructive / equal budget | 27.75 | 27.75 | 27.75 | 100 | 50,000 | 0.068092 | 719.10 | No; best found |
+| Random / equal budget | 27.75 | 29.1875 | 30.25 | 100 | 50,000 | 0.297580 | 29.10 | No; best found |
+| Hybrid / own stopping | 27.75 | 27.75 | 27.75 | 100 | 40,000 | 0.174060 | 14.85 | No; best found |
+| Random / matched stopping budget | 27.75 | 29.4375 | 30.25 | 100 | 40,000 | 0.238141 | 21.35 | No; best found |
+
+All methods' best results have 0% gap to the Exact optimum on this sample; the mean and worst results show Random's variability. Exact is a single deterministic run with no seed. See `LECTURE_ACTIVITIES.md` for the activity answers, mistakes-to-safeguards table, gap formula, objective separation and comparison protocols.

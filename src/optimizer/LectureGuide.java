@@ -7,6 +7,8 @@ public final class LectureGuide {
         <html><body style='font-family:SansSerif;color:#19273e;margin:24px'>
         <h1>Model first. Search second.</h1>
         <p>Based on the supplied Optimization Methods lectures, Weeks 0 and 1.</p>
+        <h2>Week 1 slide 19: five-step workflow</h2>
+        <ol><li>Understand: identify the placement need, inputs and units.</li><li>Formulate: decisions, objective and mandatory capacity/count rules.</li><li>Choose method: Exact for proof, Random for a baseline, GRASP for budgeted search.</li><li>Implement and verify: one evaluator; hand examples and automated checks.</li><li>Experiment and explain: 20 paired seeds, budgets, stopping conditions, quality, time and confidence.</li></ol>
         <h2>1. The four parts of the model</h2>
         <p><b>Decision:</b> x[i] is the selected server, 0 to 3, for service i. A candidate contains all 12 decisions.</p>
         <p><b>Objective:</b> minimize D(x) = sum(serviceLatency[i] + serverLatency[x[i]]) / 12.</p>
