@@ -1,0 +1,1 @@
+Objective BALANCED, seed 2026, min 2, HYBRID, greediness 0.35, patience 0, budget 20000 per priority. 11 priorities alpha=0.0 through 1.0. Input data match ../default-run/inputs. Prices illustrative. Sampled nondominance is not a global Pareto certificate.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service Placement Lab — class presentation</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101b2c;color:#fff;font:15px system-ui,sans-serif;display:flex;flex-direction:column;min-height:100vh}header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:13px 24px;color:#c5d0e1}header strong{font-weight:600;color:#fff}header a{color:#9cbdff}main{flex:1;display:grid;place-items:center;padding:8px 24px;min-height:0}.slide{display:none;width:min(1280px,calc(100vw - 48px),calc((100vh - 130px)*16/9));height:auto;box-shadow:0 20px 80px #0006}.slide.active{display:block}nav{display:flex;align-items:center;justify-content:center;gap:18px;padding:15px 24px}button{color:#fff;background:#2f4668;border:1px solid #526787;border-radius:7px;padding:9px 16px;font:inherit;cursor:pointer}button:hover{background:#3b5c8e}button:focus-visible{outline:3px solid #86aaff;outline-offset:3px}button:disabled{opacity:.35;cursor:default}#counter{min-width:80px;text-align:center;color:#c5d0e1}.hint{color:#a5b6cd;font-size:12px}.skip{position:absolute;left:-9999px}.skip:focus{left:20px;top:10px;background:white;color:#111;padding:10px;z-index:3}@media(max-width:700px){header .hint{display:none}header{font-size:12px;padding:12px}main{padding:4px}.slide{width:calc(100vw - 8px)}nav{gap:8px;padding:12px}button{padding:8px;font-size:12px}}@media print{@page{size:landscape;margin:0}body{background:white;display:block}header,nav{display:none}main{display:block;padding:0}.slide{display:block!important;width:100%;height:auto;box-shadow:none;break-after:page;page-break-after:always}.slide:last-child{break-after:auto;page-break-after:auto}}
+</style>
+</head>
+<body>
+<a class="skip" href="#slides">Skip to presentation</a>
+<header><strong>Service Placement Lab</strong><span class="hint">Arrow keys to navigate. F for fullscreen.</span><a href="Class_Presentation.pptx">Editable PowerPoint</a></header>
+<main id="slides" aria-label="Class presentation">
+<img class="slide active" src="slides/01.png" alt="Slide 1. Service placement with Java. Four servers and twelve services.">
+<img class="slide" src="slides/02.png" alt="Slide 2. Decision variables, objective, constraints and known inputs.">
+<img class="slide" src="slides/03.png" alt="Slide 3. There are 16,777,216 assignments. One million is an evaluation budget.">
+<img class="slide" src="slides/04.png" alt="Slide 4. GRASP combines randomized feasible construction with move and swap local descent and restarts.">
+<img class="slide" src="slides/05.png" alt="Slide 5. A hand-calculated three-candidate example checks the evaluator.">
+<img class="slide" src="slides/06.png" alt="Slide 6. All resource constraints hold for a best-found placement with 27.75 ms average delay.">
+<img class="slide" src="slides/07.png" alt="Slide 7. The native Java dashboard visualizes assignments, capacities, convergence and coverage.">
+<img class="slide" src="slides/08.png" alt="Slide 8. Twenty paired seeds at fifty thousand evaluations per method show hybrid mean 27.75 ms, construction 27.75 ms, and random 29.1875 ms.">
+<img class="slide" src="slides/09.png" alt="Slide 9. An optional experiment combines normalized cost and delay with illustrative prices.">
+<img class="slide" src="slides/10.png" alt="Slide 10. Feasible, reproducible best-found results without a global optimality certificate.">
+</main>
+<nav aria-label="Presentation controls"><button id="previous" aria-label="Previous slide">Previous</button><span id="counter" aria-live="polite">1 / 10</span><button id="next" aria-label="Next slide">Next</button><button id="fullscreen">Fullscreen</button><button id="print">Print</button></nav>
+<script>
+const slides=[...document.querySelectorAll('.slide')];let index=0;
+function show(value){index=Math.max(0,Math.min(slides.length-1,value));slides.forEach((s,i)=>s.classList.toggle('active',i===index));document.querySelector('#counter').textContent=`${index+1} / ${slides.length}`;document.querySelector('#previous').disabled=index===0;document.querySelector('#next').disabled=index===slides.length-1;location.hash=String(index+1);}
+document.querySelector('#previous').onclick=()=>show(index-1);document.querySelector('#next').onclick=()=>show(index+1);
+async function full(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch(e){document.querySelector('.hint').textContent='Use your browser’s fullscreen control.';}}
+document.querySelector('#fullscreen').onclick=full;document.querySelector('#print').onclick=()=>window.print();
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(index+1);}else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(index-1);}else if(e.key==='Home')show(0);else if(e.key==='End')show(slides.length-1);else if(e.key.toLowerCase()==='f')full();});
+window.addEventListener('hashchange',()=>{const n=Number(location.hash.slice(1));if(Number.isInteger(n)&&n>=1&&n<=slides.length&&n!==index+1)show(n-1);});
+const initial=Number(location.hash.slice(1));show(Number.isInteger(initial)&&initial>=1&&initial<=slides.length?initial-1:0);
+</script>
+</body>
+</html>
