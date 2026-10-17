@@ -1,0 +1,2 @@
+PASS: Assessment T1–T12, reference arithmetic, shared evaluator and live control checks
+PASS: 1148 checks (model/search, GUI worker/stop, truthful recording, playback and result comparisons)

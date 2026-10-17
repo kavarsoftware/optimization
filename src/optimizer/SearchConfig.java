@@ -1,11 +1,24 @@
 package optimizer;
 
-/** A zero patience value disables early stopping for equal-budget experiments. */
-public record SearchConfig(long seed, int budget, int batchSize, int patience, double greediness) {
+/** Patience counts complete stagnant batches. Zero disables batch stopping. */
+public record SearchConfig(
+        long seed, int budget, int batchSize, int patience, double greediness, double target) {
+    public SearchConfig(long seed, int budget, int batchSize, int patience, double greediness) {
+        this(seed, budget, batchSize, patience, greediness, 18.0);
+    }
+
     public SearchConfig {
-        if (budget < 1 || budget > 1_000_000) throw new IllegalArgumentException("Budget must be 1..1,000,000");
-        if (batchSize < 1 || patience < 0 || !Double.isFinite(greediness) || greediness < 0 || greediness > 1)
+        if (budget < 1) throw new IllegalArgumentException("Budget must be positive");
+        if (batchSize < 1
+                || patience < 0
+                || !Double.isFinite(greediness)
+                || greediness < 0
+                || greediness > 1
+                || !Double.isFinite(target))
             throw new IllegalArgumentException("Invalid search settings");
     }
-    public static SearchConfig defaults() { return new SearchConfig(2026,1_000_000,10_000,3,.35); }
+
+    public static SearchConfig defaults() {
+        return new SearchConfig(2026, 1_000_000, 10_000, 1, .35, 18);
+    }
 }

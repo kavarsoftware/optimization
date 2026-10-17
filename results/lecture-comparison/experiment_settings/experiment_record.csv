@@ -1,2 +1,0 @@
-instance,method,version,objective,score_unit,alpha,minimum_services,budget_evaluations,batch_evaluations,patience_batches,greediness,stopping_condition,seed,best_score,feasible,evaluations,unique_candidates,runtime_ms,java_version,os,proven_optimal
-"godar-4x12-v1","EXACT","grasp-vnd-1.1","LATENCY","ms","0.75","2","not applicable","10000","0","0.35","Exact enumeration complete","NA","27.75","true","16777216","16777216","5549","17.0.20","Mac OS X","true"

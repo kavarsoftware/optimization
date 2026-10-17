@@ -1,38 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Service Placement Lab — class presentation</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#101b2c;color:#fff;font:15px system-ui,sans-serif;display:flex;flex-direction:column;min-height:100vh}header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:13px 24px;color:#c5d0e1}header strong{font-weight:600;color:#fff}header a{color:#9cbdff}main{flex:1;display:grid;place-items:center;padding:8px 24px;min-height:0}.slide{display:none;width:min(1280px,calc(100vw - 48px),calc((100vh - 130px)*16/9));height:auto;box-shadow:0 20px 80px #0006}.slide.active{display:block}nav{display:flex;align-items:center;justify-content:center;gap:18px;padding:15px 24px}button{color:#fff;background:#2f4668;border:1px solid #526787;border-radius:7px;padding:9px 16px;font:inherit;cursor:pointer}button:hover{background:#3b5c8e}button:focus-visible{outline:3px solid #86aaff;outline-offset:3px}button:disabled{opacity:.35;cursor:default}#counter{min-width:80px;text-align:center;color:#c5d0e1}.hint{color:#a5b6cd;font-size:12px}.skip{position:absolute;left:-9999px}.skip:focus{left:20px;top:10px;background:white;color:#111;padding:10px;z-index:3}@media(max-width:700px){header .hint{display:none}header{font-size:12px;padding:12px}main{padding:4px}.slide{width:calc(100vw - 8px)}nav{gap:8px;padding:12px}button{padding:8px;font-size:12px}}@media print{@page{size:landscape;margin:0}body{background:white;display:block}header,nav{display:none}main{display:block;padding:0}.slide{display:block!important;width:100%;height:auto;box-shadow:none;break-after:page;page-break-after:always}.slide:last-child{break-after:auto;page-break-after:auto}}
-</style>
-</head>
-<body>
-<a class="skip" href="#slides">Skip to presentation</a>
-<header><strong>Service Placement Lab</strong><span class="hint">Arrow keys to navigate. F for fullscreen.</span><a href="Class_Presentation.pptx">Editable PowerPoint</a></header>
-<main id="slides" aria-label="Class presentation">
-<img class="slide active" src="slides/01.png" alt="Slide 1. Service placement with Java. Four servers and twelve services.">
-<img class="slide" src="slides/02.png" alt="Slide 2. Decision variables, objective, constraints and known inputs.">
-<img class="slide" src="slides/03.png" alt="Slide 3. There are 16,777,216 assignments. One million is an evaluation budget.">
-<img class="slide" src="slides/04.png" alt="Slide 4. GRASP combines randomized feasible construction with move and swap local descent and restarts.">
-<img class="slide" src="slides/05.png" alt="Slide 5. A hand-calculated three-candidate example checks the evaluator.">
-<img class="slide" src="slides/06.png" alt="Slide 6. All resource constraints hold for a best-found placement with 27.75 ms average delay.">
-<img class="slide" src="slides/07.png" alt="Slide 7. The native Java dashboard visualizes assignments, capacities, convergence and coverage.">
-<img class="slide" src="slides/08.png" alt="Slide 8. Twenty paired seeds at fifty thousand evaluations per method show hybrid mean 27.75 ms, construction 27.75 ms, and random 29.1875 ms.">
-<img class="slide" src="slides/09.png" alt="Slide 9. An optional experiment combines normalized cost and delay with illustrative prices.">
-<img class="slide" src="slides/10.png" alt="Slide 10. Feasible, reproducible best-found results without a global optimality certificate.">
-</main>
-<nav aria-label="Presentation controls"><button id="previous" aria-label="Previous slide">Previous</button><span id="counter" aria-live="polite">1 / 10</span><button id="next" aria-label="Next slide">Next</button><button id="fullscreen">Fullscreen</button><button id="print">Print</button></nav>
-<script>
-const slides=[...document.querySelectorAll('.slide')];let index=0;
-function show(value){index=Math.max(0,Math.min(slides.length-1,value));slides.forEach((s,i)=>s.classList.toggle('active',i===index));document.querySelector('#counter').textContent=`${index+1} / ${slides.length}`;document.querySelector('#previous').disabled=index===0;document.querySelector('#next').disabled=index===slides.length-1;location.hash=String(index+1);}
-document.querySelector('#previous').onclick=()=>show(index-1);document.querySelector('#next').onclick=()=>show(index+1);
-async function full(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch(e){document.querySelector('.hint').textContent='Use your browser’s fullscreen control.';}}
-document.querySelector('#fullscreen').onclick=full;document.querySelector('#print').onclick=()=>window.print();
-document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(index+1);}else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();show(index-1);}else if(e.key==='Home')show(0);else if(e.key==='End')show(slides.length-1);else if(e.key.toLowerCase()==='f')full();});
-window.addEventListener('hashchange',()=>{const n=Number(location.hash.slice(1));if(Number.isInteger(n)&&n>=1&&n<=slides.length&&n!==index+1)show(n-1);});
-const initial=Number(location.hash.slice(1));show(Number.isInteger(initial)&&initial>=1&&initial<=slides.length?initial-1:0);
-</script>
-</body>
-</html>
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Server Placement Lab — five-minute talk</title><style>body{margin:0;background:#091222;color:#e3f0ff;font:24px system-ui}main{max-width:1220px;margin:0 auto;padding:48px}section{display:none;min-height:80vh}section.active{display:block}h1{font-size:52px;color:#46e8a6}h2{font-size:38px}p,li{line-height:1.6}img{display:block;max-height:65vh;max-width:100%;background:white;border-radius:12px}button{font:20px system-ui;padding:12px 24px;margin:12px;border:0;border-radius:7px;background:#3866e8;color:white}nav{position:fixed;bottom:8px;right:16px}small{color:#839bb8}code{color:#40d5f6}</style><main>
+<section class="active"><small>Dr. Godar / Weeks 0 + 1 / 0:00–0:45</small><h1>Server Placement Lab</h1><p>12 services. 4 limited servers. One shared evaluator.</p><p>Decision: <code>int[12]</code> host assignments.</p><p>Minimize <code>J = .35*M/30 + .20*C/.50 + .15*E/5 + .30*L/70</code> (dimensionless).</p><p>CPU, RAM, disk, GPU, max-service-count and network SLAs are mandatory.</p></section>
+<section><small>0:45–1:30 / search space and reference</small><h2>16,777,216 assignments; 92,643 feasible</h2><img src="../results/assessment-study/charts/space.png" alt="Measured search-space counts"></section>
+<section><small>1:30–2:35 / main method</small><h1>Smart Restart Search</h1><ol><li>Build a capacity-aware randomized greedy start.</li><li>Improve it using moves and swaps.</li><li>Restart when its neighborhood has no improvement.</li><li>Check the best score after each 10,000-evaluation batch.</li><li>Stop after one complete stagnant batch, or at the cap.</li></ol><p>Show the Java replay: accepted move, rejected trial and comparison pulse.</p></section>
+<section><small>2:35–3:10 / evidence from 20 seeds</small><h2>SRS: mean J 0.71605682 at 20,000 evaluations</h2><img src="../results/assessment-study/charts/quality.png" alt="Measured mean and min/max objective J"></section>
+<section><small>3:10–3:45 / fair budgets and confidence</small><h2>Better answers using fewer evaluations</h2><img src="../results/assessment-study/charts/convergence.png" alt="Four-method convergence and optimistic lower bound"></section>
+<section><small>3:45–4:25 / lecture connections</small><h2>Model → verify → experiment → explain</h2><p>Run records preserve inputs, version, parameters, stopping condition, seed, score, feasibility, evaluations, Java and OS.</p><p>Exact has no seed. Three stochastic methods use seeds 2026..2045.</p><p>Separate equal-budget comparisons avoid confusing quality with work. Illustrative prices show sampled cost/delay trade-offs.</p></section>
+<section><small>4:25–5:00 / conclusion and limits</small><h1>Exact J = 0.71515436; SRS remains best found</h1><p>SRS matched Exact in 5/20 main runs and 18/20 at 100,000 evaluations.</p><p>Exact proves the optimum of this model. SRS has no general guarantee.</p><p>Verification checks the code. Validation needs real measurements and stakeholder review.</p><p><small>See PRESENTATION.md for the full five-minute script and 15 teacher questions.</small></p></section></main><nav><button id="back">Back</button><span id="count">1 / 7</span><button id="next">Next</button></nav><script>const slides=[...document.querySelectorAll('section')];let i=0;function show(n){i=Math.max(0,Math.min(slides.length-1,n));slides.forEach((s,j)=>s.classList.toggle('active',i===j));document.querySelector('#count').textContent=`${i+1} / ${slides.length}`}document.querySelector('#back').onclick=()=>show(i-1);document.querySelector('#next').onclick=()=>show(i+1);document.onkeydown=e=>{if(e.key==='ArrowRight'||e.key===' ')show(i+1);if(e.key==='ArrowLeft')show(i-1)};</script></html>

@@ -1,0 +1,7 @@
+{
+  "feasible_assignments": 18281,
+  "best_numerator": 1050,
+  "denominator": 63,
+  "best_score_ms": 16.666666666666668,
+  "method": "Independent integer depth-first enumeration with capacity/count pruning"
+}

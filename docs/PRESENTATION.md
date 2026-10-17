@@ -1,113 +1,75 @@
-# Speaking guide for Dr. Godar
+# Five-minute assessment demonstration
 
-Use `Presentation.html` in a browser for the classroom slides. This file is the speaking script. Aim for about 8–10 minutes, including the Java demo.
+This script uses the **Assessment benchmark**, not the original weighted score. Keep the app open at 200% on a high-DPI display. `View ms` can be 70–150 so real intermediate states are easy to discuss. The report and CSVs contain the exact measurements.
 
-## 1. The problem (45 seconds)
+## 0:00–0:45 — Model and fixed benchmark
 
-“Our project assigns twelve services to four servers. Each server has CPU, RAM, storage and latency. Every service has resource demands and its own latency. We want the smallest average service-plus-server delay while respecting all resource limits.”
+“We place exactly twelve independent services on four heterogeneous servers, A through D. Our decision is a twelve-entry vector. Every service has exactly one host. CPU, RAM, disk, GPU slots, maximum service count and each service's network SLA are hard constraints.”
 
-Show the Model and data tab. Explain that capacities and measured delays are inputs. The optimizer chooses host IDs. The default two-services-per-server rule comes from the supplied code and is configurable.
+Show **Configuration**. “These are the fixed assessment defaults and can be edited/reset. Assessment mode does not require two services on every host; the separate original project keeps that rule.”
 
-## 2. Formulation (one minute)
+“J combines normalized makespan, busy-time cost, energy and mean network latency with the specified weights 0.35, 0.20, 0.15 and 0.30. Lower J is better.”
 
-“Following Weeks 0 and 1, we defined the model before choosing a method. A candidate is a twelve-entry array. Each entry selects one of four servers. The objective is average delay. Constraints check CPU, RAM, storage and minimum counts. A fast placement is rejected if it breaks any mandatory rule.”
+## 0:45–1:30 — Verify the numeric reference
 
-Write `D = sum(service latency + assigned server latency) / 12`. Mention that service latency is in milliseconds, not an importance weight. Each service contributes equally to the average because no request frequencies were supplied.
+Click **Reference check**. “The supplied mapping is feasible but not claimed optimal. We reproduce J=0.856845, M=28.3333 seconds, C=0.449583 dollars, E=3.927416 Wh, L=53.347863 ms and Lmax=76.666667 ms. All twelve SLAs pass.”
 
-## 3. Search space (45 seconds)
+Show **Network / SLAs**. “Latency is RTT plus payload transfer time: MB to Mb multiplies by eight, then seconds to ms multiplies by 1000. Compute/wait time is excluded from this communication SLA.”
 
-“Each of the twelve services has four choices. That gives 4^12, or 16,777,216 complete assignments before constraints. One million is our maximum evaluation budget. It is not the total number of solutions. We seek a good feasible answer by examining a small part of the space.”
+Show **Compute timeline**. “Services process sequentially in ascending ID order. Work/Speed gives seconds. Algorithm run time, makespan and network milliseconds are three different measures.”
 
-## 4. The method (two minutes)
+## 1:30–2:35 — Explain and show SRS
 
-“We use GRASP, combining randomized greedy construction with local improvement. First we place services that have fewer compatible hosts. At each step we consider remaining resources and choose randomly from a list of good hosts. Every fifth attempt allows more diverse feasible choices.”
+“Our main method is Smart Restart Search, a GRASP-style metaheuristic. It constructs starts using resource, GPU and SLA eligibility, tests moves and swaps, accepts strict feasible improvement, and restarts at local optima. Greediness, batch size, patience and the cap are configurable.”
 
-“Then we inspect two neighborhoods. A move changes one service's host. A swap exchanges two services' hosts. With twelve services, these give at most 36 moves and 66 swaps. We accept the best feasible strict improvement. When no improvement remains, we create a new starting placement.”
+Click **Start**, then **Pause**, **Step**, **Resume**. “These controls affect real evaluations. One iteration means one complete candidate evaluation. We record the actual candidate and incumbent; invalid trials are rejected and may appear red, but never replace the best feasible solution.”
 
-“A restart helps leave a local optimum. It does not prove that we have reached the global optimum.”
+Show **Current trial** and **Best feasible so far**. Point to the pulse and CPU/GPU/slot bars. “One batch is 10,000 evaluations. With patience one, a completed batch without global improvement stops the search. A batch rule is a practical choice, not an optimality proof.”
 
-## 5. Live Java demo (two minutes)
+## 2:35–3:45 — Evidence and confidence
 
-1. Select the default hybrid and service latency objective, seed 2026, minimum two services per host.
-2. Press Run optimizer. The supplied instance is small, so this can finish quickly.
-3. Point to S4's RAM: 48 of 48 GB. Equality satisfies the capacity rule.
-4. Explain the placement and 27.75 ms average delay.
-5. Point to the chart and best-found label. The score first appeared at evaluation 114. The run continued to check for later improvements.
-6. Explain that three stagnant batches caused a stop at 40,000 evaluations.
-7. Point to 0.171% distinct coverage. Evaluations and unique candidates are different quantities.
+Show the saved study's summary/charts or run the study in advance. “We used seeds 2026 through 2045. Exact checked every one of 16,777,216 assignments once and counted 92,643 feasible placements. It proved J=0.71515436 for this model.”
 
-## 6. Evidence (one minute)
+“SRS averaged 0.71605682 at 20,000 evaluations and matched Exact in five of twenty runs. At the same 100,000-evaluation budget as Random, SRS matched Exact in eighteen of twenty runs. Random's main mean was 0.72407629. Target stops as soon as J is at most 0.8, so its fast threshold success does not mean it finds the minimum.”
 
-“We compared three methods using seeds 2026 through 2045. Every run used 50,000 evaluations, and all methods shared the same evaluator. The hybrid's mean delay was 27.75 ms. Uniform random search averaged 29.1875 ms. Randomized construction alone also reached 27.75 ms in all twenty runs.”
+“Runtime is measured on this machine, excludes deliberate display waits and exports, and can vary. The record preserves all inputs, settings, seeds, units and platform information.”
 
-“This means the data support our approach over uniform random sampling on this instance. They do not show that the local search phase always improves the final quality, and they do not prove that the method is best for every problem.”
+## 3:45–4:25 — Budgets, sensitivity and tests
 
-Open the Experiments tab or show the saved summary. Keep runtime claims tied to the measured machine and explain construction overhead.
+“The 20/50/100/200-evaluation experiment shows how more search improves mean J. Increasing RTT by 25% or reducing bandwidth by 30%, using the same seeds, raises communication latency and changes the placement trade-offs. Every reported solution still satisfies all SLAs.”
 
-## 7. Trade-offs and conclusion (one minute)
+Point to T1–T12 evidence. “We deliberately test S06 on non-GPU A, CPU overload at 21/16 vCPU, insufficient total GPUs, exact capacity equality, invalid speed/network inputs, and S03 on C at 70 ms against a 60 ms SLA. A search failure alone is not an infeasibility proof.”
 
-“The lectures also explain conflicting objectives. Our optional cost/delay experiment changes a normalized priority weight and displays sampled nondominated results. Its prices are illustrative because actual costs were not supplied. The default project stays with the requested latency objective.”
+## 4:25–5:00 — Lecture connection and conclusion
 
-“Our evidence is a feasible placement, a clear objective, reproducible seeds, repeated comparisons, and checked evaluation logic. We report the best answer found within the budget without a global certificate.”
+“We followed understand, formulate, choose, implement and verify, then experiment and explain. Verification asks whether the code matches the model. Validation asks whether the model captures reality. This is the assessment's simplified simulation, with no congestion or real cloud deployment.”
 
-## Questions you should be ready to answer
+“SRS returns best found. Only a completed Exact procedure can establish global optimality for a returned score on this instance. The original weighted project remains available separately; its 16.666667 ms score is not comparable with J. I used and disclose Codex assistance, and can trace the evaluator and search code.”
 
-**Why is the number of possibilities larger than one million?**
+## Fifteen likely teacher questions
 
-There are four independent host choices for each of twelve services: 4^12. One million is the cap on evaluations. Feasibility rules reduce the acceptable subset.
+1. **What is a seed?** The pseudorandom generator's initial state. Same inputs, settings, version and seed reproduce scores/assignments/counts; runtime varies.
+2. **Why not only use Exact?** Exact is practical here and supplies a certificate. Work grows as 4^n; SRS demonstrates good results with fewer complete evaluations.
+3. **Why 10,000 per batch?** It is an adjustable observation interval, not a theorem. It balances search effort with the risk of stopping before another useful restart.
+4. **What is patience?** The number of complete consecutive stagnant batches; default one. Zero disables this stop rule.
+5. **What is a local optimum?** A placement with no improving move or swap in the inspected neighborhood. A distant placement may still improve J.
+6. **Why Random as a comparator?** It is transparent and shares the evaluator. Equal-budget and SRS-stop-budget comparisons isolate the value of structured search.
+7. **What is feasible?** Valid unique placement plus all CPU/RAM/disk/GPU/slot/SLA limits. Low J never compensates for a violated SLA.
+8. **Why normalize J?** M, C, E and L use incompatible units. Dividing by fixed reference scales makes dimensionless weighted terms; those scales are not capacity limits.
+9. **How is network latency calculated?** RTT ms + 1000 × (8 × payload MB / bandwidth Mb/s). It excludes compute and waiting time under the mandatory model.
+10. **What are the three different times?** Active algorithm time in ms, simulated compute makespan in seconds, per-service network latency in ms. Pause/display waits are tracked separately.
+11. **Why does the timeline order matter?** The brief specifies ascending service ID. Each rectangle lasts Work/Speed seconds; their sum equals server busy time, and the largest total is M.
+12. **Can SRS claim a global optimum?** Its own stop rule cannot. A result matching the completed Exact score is certified for that same model; otherwise report best found and its gap.
+13. **Why might energy, cost or latency rise while J improves?** J trades four normalized terms. Only the combined best J is monotone; its component measures can move in opposite directions.
+14. **How do you prove infeasibility?** Some necessary conditions suffice, such as total GPU demand 3 > available 1. General search failure is inconclusive; complete enumeration can prove no feasible vector exists.
+15. **Verification versus validation, and who wrote the code?** Hand/reference checks, T1–T12 and independent enumeration verify implementation. Physical validation needs realistic measurements. The student supplied the project/data; Codex assisted implementation and documentation, which must be reviewed and credited under institutional rules.
 
-**Is 27.75 ms the exact optimum?**
+## Optional one-minute comparison demonstration
 
-The search does not certify that. It is the best found in our recorded runs. The optimistic lower bound of 10.25 ms ignores constraints and is weak.
+Open **Experiments → Compare 10 algorithms**. Use first seed 2026, 20 seeds, budget 20,000 per run. Click **Compare 10 algorithms**. This collects 200 runs with the same input, hard constraints and fixed J. Exact provides a separate reference. Both target stopping and batch patience are disabled for this protocol.
 
-**What does heuristic mean? What makes GRASP a metaheuristic?**
+“Tabu matched the exact optimum in 20 of 20 runs; VNS in 13, annealing in 11, and SRS in 5. The ranking uses mean feasible score and feasible-run coverage, not the luckiest best. All 200 outputs satisfy the hard rules. I would choose Tabu at this budget on this benchmark; other inputs and parameter choices may change the winner.”
 
-A heuristic uses useful problem rules, such as placing restricted services early. A metaheuristic coordinates broader exploration. GRASP repeatedly builds randomized greedy starts and improves them through local search.
+Show **Seed spread**, **Speed**, then **Paired vs SRS**. Select Genetic and seed 2032: Genetic J=0.716529359580, SRS J=0.716357637206; delta is approximately +0.000172, so SRS is better on that seed. The pulse marks an actual selected record. Explain that the x-axis lists independent seeds; it is not a single evolving run.
 
-**Why not stop after one batch with no change?**
-
-A batch may miss useful starts. Three stagnant batches are a configurable compromise between time and search effort. Any finite patience can stop before a better candidate is found.
-
-**How do you avoid a local optimum?**
-
-We restart from new randomized constructions. Swaps also reach some improvements that individual moves cannot. There is still no guarantee of escaping every difficult region.
-
-**Why can service latency stay in the objective if it is constant?**
-
-It expresses total modeled delay and preserves units. It adds 5.25 ms to every placement, so placement rankings depend on assigned server delays. Host-dependent execution times would need richer input data.
-
-**Why not put everything on S4?**
-
-CPU, RAM and storage would overload, and the other hosts would violate the count rule. Such a candidate is infeasible even if its raw delay looks attractive.
-
-**Do two services on every host guarantee reliability?**
-
-No. This is a distribution rule from the old code. Real reliability constraints need failure probabilities, replicas and failure-domain requirements.
-
-**What is deterministic and what is stochastic here?**
-
-The evaluator is deterministic. The search makes seeded random choices. Same inputs, version, parameters and seed reproduce the search result and counts. Runtime varies.
-
-**What is the difference between verification and validation?**
-
-Verification checks that Java matches our equations. Validation checks whether those equations and inputs represent the real deployment. Automated checks help with the first; measured data and stakeholder review help with the second.
-
-**Does a 50,000-evaluation comparison guarantee equal running time?**
-
-No. Construction may perform many partial checks before producing a complete candidate. We report those counters and wall time separately. Equal evaluator budgets make one aspect comparable.
-
-**Why keep construction-only if it ties the hybrid?**
-
-It is an ablation. The tie is useful evidence that greedy construction is already strong for this simple latency objective. The project should explain this instead of hiding it.
-
-**Did you implement genetic algorithms, simulated annealing and particle swarm too?**
-
-No. Week 1 names them in the semester map as later topics. Our project explains their relationship, uses one clear approximate method, and compares it with meaningful baselines.
-
-**Can you explain the evaluator by hand?**
-
-Use the three-candidate two-server example in REPORT §8 or the Lecture guide tab. Show why A is 12 ms, B is 17 ms, and C is infeasible.
-
-**How does the Java structure follow the lectures?**
-
-Show `ProblemData`, `Candidate`, `Evaluation`, `Evaluator`, `SearchMethod` and `ExperimentRunner`. The problem model stays fixed when the search method changes.
+If asked why ten methods: they illustrate different search strategies and escaping local minima. They extend the lecture's general search framework; not every added algorithm was necessarily taught in Weeks 0/1. These are readable teaching variants with all parameters and background references disclosed in `TEN_ALGORITHMS.md`.

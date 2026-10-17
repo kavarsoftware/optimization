@@ -1,74 +1,86 @@
-# Service Placement Lab
+# Server Placement Lab — Java 17
 
-A Java project for Dr. Godar's Optimization Methods course. Place 12 services on 4 servers while respecting CPU, RAM and storage capacities. A GRASP metaheuristic combines randomized greedy construction, move/swap local descent, and repeated restarts.
+The app now opens in **Assessment benchmark** mode for `docs/Assessment_Latency.pdf`. The original weighted-latency project, unchanged original CSVs, animations and cost/delay sweep remain available through **Original CSV project** or `--original`. The two datasets and objectives are kept separate.
 
-The service values are **latencies in milliseconds**, as confirmed by the student. The default objective minimizes average service latency plus server latency. The optional legacy mode reproduces the weight interpretation in the original code.
+No external Java libraries, Maven, Gradle, network account or API key are required. The source, JAR and scripts are included.
 
-## Open the application
+**New: Experiments → Compare 10 algorithms.** This is a separate comparison on the same assessment model, with 20 paired seeds and 20,000 evaluations per algorithm per seed. It adds a quality ranking, every-seed spread, runtime bars, ten convergence curves, statistics, and a pulsing **Paired vs SRS** view. Pick an algorithm and seed to see its real score difference from SRS. The original four-method assessment study remains available.
 
-Requires **Java 17 or newer**, with a graphical desktop. The compiled JAR is included. No Maven, Gradle, external libraries, internet connection, or database is required.
-
-- Windows: double-click `run.bat`.
-- Linux/macOS: run `./run.sh` from this folder.
-- Any platform: `java -Xmx512m -jar ServerPlacementLab.jar`.
-
-If Java is missing, install a Java 17+ JDK/JRE first or point `JAVA_HOME` at an existing installation. A JDK is required to rebuild the source. The Java runtime itself is not bundled in this portable project.
-
-The dashboard opens maximized and automatically uses 200% scaling on high-DPI Linux displays. Search history and service assignments have separate result tabs so both stay readable. To choose the display scale explicitly, use `./run.sh --ui-scale 2` for 200% or `./run.sh --ui-scale 1` for 100%. Windows/macOS retain their native Java scaling unless you supply an override.
-
-## What to demonstrate
-
-1. Open **Model and data** to explain known inputs and units. Cells are editable.
-2. Keep the default service latency objective, seed 2026, and minimum two services per server.
-3. Press **Run optimizer**. Inspect placement, capacity bars, convergence, feasibility, coverage and stopping evidence.
-4. Open **Experiments**, then **Compare methods**. Stochastic methods share an evaluator and full evaluation budgets; Exact enumerates the entire space without a seed. Uses 20 paired seeds at 50,000 evaluations per method.
-5. Run the optional **cost / delay sweep** to show stakeholder priorities. Its prices are explicitly illustrative.
-6. Use **Export run** or **Export experiments** to preserve reproducible evidence.
-
-The default reference run found **27.75 ms**, with all constraints satisfied, after 40,000 evaluation calls. It visited 28,696 distinct candidates, about **0.171%** of the 16,777,216 possible assignments. The first occurrence of this score was evaluation 114. This is a best-found result without a global optimality certificate.
-
-## Build and verify
-
-From this folder, run:
+## Run / build
 
 ```sh
+java -jar ServerPlacementLab.jar
 ./build.sh
 ./run.sh --self-test
 ```
 
-On Windows, use `build.bat`, then `run.bat --self-test`.
+Linux/macOS: `./run.sh`. Windows: `run.bat` / `build.bat`. In IntelliJ: open this folder, select JDK 17+, mark `src` as Sources Root, run `optimizer.Main`. Linux high-DPI scaling is automatic; `--ui-scale 1` or `--ui-scale 2` overrides it. The provided scripts set a 512 MiB heap limit; ordinary `java -jar` also works.
 
-In IntelliJ IDEA, Eclipse, or NetBeans, open this folder as a Java project, mark `src` as the source root, choose JDK 17+, and run `optimizer.Main`. `ProblemData`, `Candidate`, `Evaluation`, `Evaluator`, `SearchMethod`, and `ExperimentRunner` correspond to the lecture's architecture.
+## Assessment model
 
-## Command-line use
+Twelve indivisible services choose one of A–D: **4^12 = 16,777,216** possible vectors. Hard rules cover CPU, RAM, disk, GPU slots, maximum service count and each service's network-latency SLA. There is **no minimum-two rule in assessment mode**; the PDF reference legitimately puts only S12 on B.
+
+- Busy time `B = sum(Work GI / Speed GI/s)`; makespan `M = max B` in seconds.
+- Active power `P = Idle + (Peak-Idle)*CPU utilization`; an unused server is powered off.
+- Energy `E = sum(P*B/3600)` Wh; cost `C = sum(busy-time price*B)` USD.
+- Network latency `RTT + 1000*8*payloadMB/bandwidthMbPerSecond` ms. Its mean is L, maximum Lmax. This excludes CPU processing/wait time.
+- Minimize dimensionless **J = 0.35*M/30 + 0.20*C/0.50 + 0.15*E/5 + 0.30*L/70**. The weights/scales are fixed, not hard limits.
+
+Assessment defaults are in `data/assessment/`. Original `data/servers.csv` and `data/services.csv` remain byte-for-byte unchanged. All assessment fields are editable/resettable in the app. Models are validated before search.
+
+## What to show
+
+1. **Reference check:** verifies the PDF's feasible mapping: J=0.856845, M=28.3333 s, C=$0.449583, E=3.927416 Wh, L=53.347863 ms, Lmax=76.666667 ms; all 12 SLAs pass. This mapping is not claimed optimal.
+2. **Start / Pause / Resume / Step / Stop / Reset:** control actual evaluations. One iteration is one complete candidate evaluation; Step permits one. `View ms` only paces delivered real events. Deliberate pauses/display waits are excluded from active search time. Recorded replay has its own tab.
+3. **Current trial / Best feasible:** linked real algorithm states, animated service links, exact CPU/RAM/disk/GPU/service-slot figures, per-service network labels and pulsing score changes. Rejected trials are marked explicitly; they never replace the feasible incumbent.
+4. **Performance:** best J and its associated L/M/E/C/Lmax versus evaluation iteration. Only J must improve monotonically; its other measures can trade off.
+5. **Network / SLAs:** RTT, bandwidth, payload, transfer time, latency, SLA margin and PASS/FAIL per service. **Compute timeline:** ascending service-ID order, Work/Speed durations, busy times and makespan.
+6. **Experiments:** twenty paired seeds, all four main methods, Exact reference, full statistics, convergence/effort/range/dot/space/growth charts, fair budgets, 20/50/100/200-evaluation study, and +25% RTT / -30% bandwidth sensitivity. CSV/PNG evidence saves automatically.
+7. **Compare 10 algorithms:** adjustable first seed, number of seeds and equal evaluation budget. Each complete invalid or repeated trial counts. Stop preserves partial results, which are labeled provisional. Exact runs once as a separate reporting reference; its answer is never passed to an approximate method.
+
+## Recommended comparison
+
+The ten algorithms are Random, randomized greedy construction, restart hill climbing, SRS/GRASP, simulated annealing, tabu search, genetic algorithm, iterated local search, variable neighborhood search and beam search. These are explicitly documented teaching variants. Target Search stays in the four-method protocol: with threshold stopping disabled it would duplicate Random.
+
+On the default PDF data, **Tabu is the strongest observed choice at 20,000 evaluations**: it matched Exact's J=0.715154359580 in **20/20** runs. VNS matched it in 13/20, annealing in 11/20, and SRS in 5/20. All 200 runs returned feasible placements. This is evidence for this instance and these parameters; it does not establish a universal winner. Rank primarily by feasibility and mean score, then consider consistency and measured runtime.
+
+See **[docs/TEN_ALGORITHMS.md](docs/TEN_ALGORITHMS.md)** for all ten results, parameters, limitations and primary references. Raw trials, per-run assignments/inputs and five PNG charts are in **[results/ten-algorithms/](results/ten-algorithms/)**. The six-page PDF report covers the earlier four-method protocol; the new Markdown report supplements it.
+
+## Methods
+
+| Method | Main protocol |
+| --- | --- |
+| **Smart Restart Search (SRS)** | Capacity/GPU/SLA-aware randomized greedy starts, best improving moves/swaps, restarts, batch stop |
+| Exact | Enumerate every assignment once; completion can certify an optimum |
+| Random | Exactly 100,000 uniform assignments |
+| Target | Until feasible J <=0.8, or 500,000 random attempts |
+
+SRS defaults: seed 2026, cap 20,000 evaluations, batch 10,000, patience 1, greediness 0.35. Batch/patience/greediness/cap are adjustable. Patience zero disables batch stopping. All invalid and repeated complete evaluations count. Failed partial constructions are recorded separately. SRS is a GRASP-style metaheuristic; Exact is also an explicitly accepted method in the brief.
+
+## Reproduce
 
 ```sh
-java -Xmx512m -jar ServerPlacementLab.jar --cli --out results/my-run
-java -Xmx512m -jar ServerPlacementLab.jar --cli --method RANDOM --seed 2026 --budget 50000 --patience 0 --out results/random-run
-java -Xmx512m -jar ServerPlacementLab.jar --compare 20 --seed 2026 --budget 50000 --out results/my-comparison
-java -Xmx512m -jar ServerPlacementLab.jar --cli --input data --objective BALANCED --alpha 0.75 --out results/compromise
-java -Xmx512m -jar ServerPlacementLab.jar --help
+./run.sh --study 20 --out results/my-assessment-study
+./run.sh --compare-ten 20 --seed 2026 --budget 20000 --out results/my-ten-algorithms
+./run.sh --cli --method EXACT --out results/my-exact
+./run.sh --cli --method HYBRID --seed 2026 --out results/my-srs
+./run.sh --original
+./run.sh --original --study 20 --out results/my-original-study
+./run.sh --help
 ```
 
-`--budget` counts every complete candidate evaluation, including infeasible and repeated candidates. It cannot exceed 1,000,000. `--patience 0` disables early stopping. Ordinary searches check stagnation at complete batches of 10,000 evaluations and stop after three stagnant batches. The equal-budget comparison disables patience; the separate stopping-point protocol pairs Random with each hybrid run at its own stopping budget.
+`--input data/assessment` loads assessment CSVs. `--original --input data` loads the original model. Saved assessment evidence is in `results/assessment-study/`, `assessment-default/`, and `assessment-reference/`; the original evidence stays in `results/weighted-study/` and `weighted-tradeoffs/`. Every run saves inputs, version, settings, stop reason, seed (Exact=N/A), feasibility, score/units, J/M/C/E/L/Lmax, SLA violations, counts, Java/OS and runtime. Study exports include six chart pairs, budget/network plots and all raw trials.
 
-Export folders contain the input CSV snapshot, assignment, resource usage, convergence and run metadata. Do not compare scores from different objective modes as though they measure the same quantity. CPU cost uses illustrative units per observation period.
+The assessment Exact minimum is **J=0.715154359580**, with **92,643 feasible placements**. SRS's main mean is **0.716056817799**; it matched Exact in 5/20 runs using 20,000 evaluations, and 18/20 at 100,000. See `docs/ASSESSMENT_RESULTS.md`. These are measured instance-specific results, not a global guarantee for SRS.
 
-## Project contents
+## Submission files
 
-- `ServerPlacementLab.jar`: compiled application.
-- `src/optimizer/`: commented Java source, including automated checks.
-- `data/`: supplied inputs and separately labeled example cost rates.
-- `docs/REPORT.md`: model, algorithm, analysis, measured results, limitations and original-code review.
-- `docs/LECTURE_MAP.md`: all 22 Week 0 slides and all 29 Week 1 slides mapped to this project.
-- `docs/PRESENTATION.md`: a short speaking script and teacher questions with answers.
-- `docs/Presentation.html`: browser presentation for class, with keyboard navigation.
-- `docs/Class_Presentation.pptx`: editable classroom slides with speaker notes.
-- `results/default-run/`: a measured reference run.
-- `results/comparison-latency/`: 20 paired seeds × 3 methods × 50,000 evaluations.
-- `results/comparison-legacy-weighted/`: a separate experiment using the old interpretation, when present.
-- `results/tradeoffs/`: a saved 11-priority cost/delay sweep with illustrative prices.
+- `docs/Assessment_Report.pdf`: six-page assessment report with screenshots, tests and measured evidence.
+- `docs/TEN_ALGORITHMS.md`: supplementary equal-budget comparison of ten algorithms and their fixed parameters.
+- `docs/PRESENTATION.md`: five-minute live-demo script and 15 teacher questions.
+- `docs/ASSESSMENT_CHECKLIST.md`: requirements and T1–T12 evidence.
+- `docs/LECTURE_MAP.md`, `CODE_WALKTHROUGH.md`: lecture coverage and source reading order.
+- `docs/ORIGINAL_PROJECT.md`, `ORIGINAL_REPORT.md`, `ORIGINAL_PRESENTATION.md`, `RESULTS.md`: preserved original-mode documentation.
+- `docs/evidence/`: test logs and independent development checks.
 
-See [lecture activity answers and experiment definitions](docs/LECTURE_ACTIVITIES.md) and the measured [final summary](results/lecture-comparison/summary.csv). Every run automatically appends to `results/run-records.csv`. Exact enumeration can take longer than budgeted search.
-
-Both lecture decks are source material. Their classroom activities and future-week instructions describe their teaching context. This project implements the student's requested optimizer and explains their relationship to that context.
+The simulation does not model congestion, real cloud traffic, failures or replicas. Verification establishes the stated formulas, not physical deployment validity. This project was developed with **OpenAI Codex assistance** and reused the student's original Java idea/data and the previously developed app. No external Java runtime libraries are included. The student should review/explain the code and disclose assistance under the institution's rules. Windows/macOS, a real projector and an IntelliJ GUI session were not directly tested; Linux Java 17 compilation, native launch, automated tests and 200% rendering were checked.

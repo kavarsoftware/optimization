@@ -22,23 +22,32 @@ public final class DisplaySettings {
                 || !System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("linux")
                 || System.getenv("DISPLAY") == null) return;
         try {
-            Process process = new ProcessBuilder("xrandr", "--current").redirectErrorStream(true).start();
-            if (!process.waitFor(750, TimeUnit.MILLISECONDS)) { process.destroyForcibly(); return; }
+            Process process =
+                    new ProcessBuilder("xrandr", "--current").redirectErrorStream(true).start();
+            if (!process.waitFor(750, TimeUnit.MILLISECONDS)) {
+                process.destroyForcibly();
+                return;
+            }
             if (process.exitValue() != 0) return;
-            String displays = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String displays =
+                    new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String primary = monitor(displays, true);
             if (primary == null) primary = monitor(displays, false);
-            if (primary != null && needsDoubleScale(primary)) System.setProperty("sun.java2d.uiScale", "2");
+            if (primary != null && needsDoubleScale(primary))
+                System.setProperty("sun.java2d.uiScale", "2");
         } catch (Exception ignored) {
             // Optional Linux detection: systems without xrandr keep their native Java scaling.
         }
     }
+
     private static String monitor(String displays, boolean primary) {
         String marker = primary ? " connected primary " : " connected ";
         for (String line : displays.split("\\R"))
-            if (line.contains(marker) && Pattern.compile("\\d+x\\d+\\+").matcher(line).find()) return line;
+            if (line.contains(marker) && Pattern.compile("\\d+x\\d+\\+").matcher(line).find())
+                return line;
         return null;
     }
+
     static boolean needsDoubleScale(String monitor) {
         Matcher pixels = Pattern.compile(" (\\d+)x(\\d+)\\+").matcher(monitor);
         if (!pixels.find()) return false;

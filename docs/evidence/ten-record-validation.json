@@ -1,0 +1,10 @@
+{
+  "checked_runs": 200,
+  "algorithms": 10,
+  "seeds": 20,
+  "complete_evaluations_per_run": 20000,
+  "total_recorded_evaluations": 4000000,
+  "all_returned_assignments_feasible": true,
+  "objective_and_metrics_independently_recalculated": true,
+  "ranking_means_sd_ranges_verified": true
+}

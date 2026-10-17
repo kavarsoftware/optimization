@@ -36,6 +36,6 @@ cd /home/mustafa/Documents/Codex/2026-10-17/the-dr-godar-ask-us-we/outputs/Serve
 ./run.sh --self-test
 ```
 
-Both Java and the compiler report version `17.0.20.1`. The project builds with the installed JDK and passes its 127 automated checks.
+Both Java and the compiler report version `17.0.20.1`. The project builds with the installed JDK and passes its automated model, search, playback and GUI checks.
 
 For an IDE's JDK setting, choose `/home/mustafa/.local/share/java/current`. No administrator password is needed for this account installation.

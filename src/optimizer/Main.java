@@ -1,60 +1,220 @@
 package optimizer;
 
-import javax.swing.*;
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
-/** Launch the dashboard, or run headless experiments with the same model and search code. */
+import javax.swing.*;
+
+/** One entry point for the desktop, reproducible experiments and self-tests. */
 public final class Main {
-    public static void main(String[] args)throws Exception{
-        Map<String,String> flags=new HashMap<>();
-        for(int i=0;i<args.length;i++){if(!args[i].startsWith("--"))throw new IllegalArgumentException("Expected --option: "+args[i]);String key=args[i].substring(2);flags.put(key,i+1<args.length&&!args[i+1].startsWith("--")?args[++i]:"true");}
-        if(flags.containsKey("help")){System.out.println("""
-            java -jar ServerPlacementLab.jar                 Open dashboard
-            java -jar ServerPlacementLab.jar --self-test     Verify model and search
-            java -jar ServerPlacementLab.jar --cli --out results/my-run
-            java -jar ServerPlacementLab.jar --compare 20 --budget 50000 --out results/comparison
-            java -jar ServerPlacementLab.jar --preview preview.png
-            Options: --seed 2026 --budget 1000000 --batch 10000 --patience 3 --min 2
-                     --method HYBRID|CONSTRUCTIVE|RANDOM|EXACT --objective LATENCY|WEIGHTED|COST|BALANCED
-                     --alpha 0.75 --input data --out results/my-run
-            Display: --ui-scale 1|2 (100% or 200%). High-DPI Linux displays scale automatically.
-            Service latency is in ms by default. WEIGHTED reproduces the old weight interpretation.
-            Exact enumerates the full space without a seed; comparisons include equal budgets and matched stopping budgets. Cost values are illustrative only.
-            """);return;}
-        if(flags.containsKey("self-test")){SelfTest.run();return;}
-        if(flags.containsKey("cli")||flags.containsKey("compare")||flags.containsKey("preview")){
-            var data=flags.containsKey("input")?CsvFiles.read(Path.of(flags.get("input"))):ProblemData.demo();
-            var e=new Evaluator(data,Integer.parseInt(flags.getOrDefault("min","2")),Evaluator.Objective.valueOf(flags.getOrDefault("objective","LATENCY")),Double.parseDouble(flags.getOrDefault("alpha",".75")));
-            var config=new SearchConfig(Long.parseLong(flags.getOrDefault("seed","2026")),Integer.parseInt(flags.getOrDefault("budget","1000000")),Integer.parseInt(flags.getOrDefault("batch","10000")),Integer.parseInt(flags.getOrDefault("patience","3")),.35);
-            Path output=Path.of(flags.getOrDefault("out","results/latest"));
-            if(flags.containsKey("compare")){
-                var trials=ExperimentRunner.compare(e,config.seed(),Integer.parseInt(flags.get("compare")),config.budget(),t->{var v=t.result().evaluation();System.out.println(t.seed()+" "+t.method().name()+" score="+(v==null?"NA":v.score())+" evaluations="+t.result().evaluations());},()->false);
-                ExperimentRunner.write(output,e,trials);System.out.println("Saved comparison: "+output.toAbsolutePath());return;
+    public static void main(String[] args) throws Exception {
+        Map<String, String> flags = new HashMap<>();
+        for (int i = 0; i < args.length; i++) {
+            if (!args[i].startsWith("--"))
+                throw new IllegalArgumentException("Expected --option: " + args[i]);
+            String key = args[i].substring(2), value = "true";
+            if (i + 1 < args.length && !args[i + 1].startsWith("--")) value = args[++i];
+            flags.put(key, value);
+        }
+        if (flags.containsKey("help")) {
+            System.out.println(
+                    """
+java -jar ServerPlacementLab.jar                      Open desktop app
+java -jar ServerPlacementLab.jar --self-test          Verify model and methods
+java -jar ServerPlacementLab.jar --cli --method EXACT --out results/exact
+java -jar ServerPlacementLab.jar --cli --method RANDOM --out results/random
+java -jar ServerPlacementLab.jar --study 20 --out results/study
+java -jar ServerPlacementLab.jar --compare-ten 20 --budget 20000 --out results/ten-algorithms
+Methods: HYBRID (SRS), EXACT, RANDOM, TARGET; CONSTRUCTIVE is an extra ablation.
+Main protocol: Exact all assignments, Random 100000, Target <= 500000, SRS batch stopping.
+Defaults: assessment PDF data / --objective ASSESSMENT --seed 2026 --budget 20000 --batch 10000 --patience 1
+          --target 0.8 --min 0 --alpha 0.75 --equal-budget 100000
+Use --original for the preserved weighted CSV project (target 18 ms, minimum two per server).
+--original --objective LATENCY keeps the old additive score. COST/BALANCED use illustrative prices.
+--input data reads the supplied CSVs. --ui-scale 1|2 overrides desktop scaling.
+Study and single-run exports include CSV records and PNG charts. Exact has no random seed.
+""");
+            return;
+        }
+        if (flags.containsKey("self-test")) {
+            SelfTest.run();
+            return;
+        }
+        if (flags.containsKey("cli")
+                || flags.containsKey("study")
+                || flags.containsKey("compare")
+                || flags.containsKey("compare-ten")) {
+            ProblemData data =
+                    flags.containsKey("input")
+                            ? CsvFiles.read(Path.of(flags.get("input")))
+                            : flags.containsKey("original")
+                                    ? ProblemData.supplied()
+                                    : ProblemData.assessmentSupplied();
+            Evaluator e =
+                    new Evaluator(
+                            data,
+                            Integer.parseInt(
+                                    flags.getOrDefault("min", data.assessment() ? "0" : "2")),
+                            Evaluator.Objective.valueOf(
+                                    flags.getOrDefault(
+                                            "objective",
+                                            data.assessment() ? "ASSESSMENT" : "WEIGHTED")),
+                            Double.parseDouble(flags.getOrDefault("alpha", ".75")));
+            SearchMethod method = SearchMethod.valueOf(flags.getOrDefault("method", "HYBRID"));
+            int standardBudget =
+                    flags.containsKey("compare-ten")
+                            ? 20_000
+                            : method == SearchMethod.RANDOM
+                                    ? 100_000
+                                    : method == SearchMethod.TARGET
+                                            ? 500_000
+                                            : data.assessment() ? 20_000 : 1_000_000;
+            SearchConfig config =
+                    new SearchConfig(
+                            Long.parseLong(flags.getOrDefault("seed", "2026")),
+                            Integer.parseInt(
+                                    flags.getOrDefault("budget", String.valueOf(standardBudget))),
+                            Integer.parseInt(flags.getOrDefault("batch", "10000")),
+                            Integer.parseInt(
+                                    flags.getOrDefault(
+                                            "patience", method == SearchMethod.HYBRID ? "1" : "0")),
+                            .35,
+                            Double.parseDouble(
+                                    flags.getOrDefault(
+                                            "target", data.assessment() ? "0.8" : "18")));
+            Path output =
+                    Path.of(flags.getOrDefault("out", "results/run-" + System.currentTimeMillis()));
+            if (flags.containsKey("compare-ten")) {
+                var comparison =
+                        AlgorithmComparison.run(
+                                e,
+                                config,
+                                Integer.parseInt(flags.get("compare-ten")),
+                                System.out::println,
+                                null,
+                                () -> false);
+                AlgorithmComparison.write(output, comparison);
+                System.out.println(AlgorithmComparison.report(comparison));
+                System.out.println("Saved comparison: " + output.toAbsolutePath());
+            } else if (flags.containsKey("study") || flags.containsKey("compare")) {
+                int seeds =
+                        Integer.parseInt(
+                                flags.getOrDefault("study", flags.getOrDefault("compare", "20")));
+                ExperimentRunner.Study study =
+                        ExperimentRunner.study(
+                                e,
+                                config,
+                                seeds,
+                                Integer.parseInt(flags.getOrDefault("equal-budget", "100000")),
+                                System.out::println,
+                                () -> false);
+                ExperimentRunner.write(output, study);
+                if (data.assessment())
+                    AssessmentExperiments.additional(
+                            output, e, config.seed(), seeds, System.out::println, () -> false);
+                System.out.println("Saved study and charts: " + output.toAbsolutePath());
+                for (SearchMethod m : ExperimentRunner.MAIN_METHODS) {
+                    ExperimentRunner.Summary s = ExperimentRunner.summarize(study, m, "main");
+                    System.out.printf(
+                            Locale.ROOT,
+                            "%s best=%.6f mean=%.6f worst=%.6f target=%.1f%% evals=%.0f time=%.2f"
+                                    + " ms%n",
+                            m,
+                            s.best(),
+                            s.mean(),
+                            s.worst(),
+                            s.successRate(),
+                            s.evaluations(),
+                            s.runtime());
+                }
+            } else {
+                java.util.List<SearchEvent> events = new java.util.ArrayList<>();
+                SearchResult result =
+                        new Optimizer().run(e, method, config, null, () -> false, events::add);
+                CsvFiles.export(output, e, result);
+                CsvFiles.writeEvents(output, events);
+                StudyCharts.exportRun(output, e, result);
+                if (data.assessment()) {
+                    java.util.List<AssessmentPlots.Point> points = new java.util.ArrayList<>();
+                    for (SearchEvent event : events)
+                        if (event.bestEvaluation() != null)
+                            points.add(
+                                    new AssessmentPlots.Point(
+                                            event.evaluations(), event.bestEvaluation()));
+                    AssessmentPlots.export(output, data, result, points);
+                }
+                System.out.println(
+                        "Stop: "
+                                + result.stopReason()
+                                + "; evaluations="
+                                + result.evaluations()
+                                + "; unique="
+                                + result.unique()
+                                + "; feasible="
+                                + result.feasible());
+                if (result.evaluation() != null)
+                    System.out.printf(
+                            Locale.ROOT,
+                            "Best score %.9f %s; runtime %d ms; proven optimal %s%n",
+                            result.evaluation().score(),
+                            ResultComparison.unit(e),
+                            result.milliseconds(),
+                            result.provenOptimal(data.searchSpace()));
+                System.out.println("Saved run: " + output.toAbsolutePath());
             }
-            var result=new Optimizer().run(e,SearchMethod.valueOf(flags.getOrDefault("method","HYBRID")),config,null,()->false);
-            System.out.println("Stop: "+result.stopReason()+"; evaluations="+result.evaluations()+"; unique="+result.unique()+"; feasible="+result.feasible());
-            if(result.evaluation()!=null){System.out.printf(Locale.ROOT,"Best found: %.6f ms; score=%.6f; cost=%.4f; runtime=%d ms%n",result.evaluation().delayMs(),result.evaluation().score(),result.evaluation().cost(),result.milliseconds());for(int i=0;i<data.services().size();i++)System.out.println(data.services().get(i).name()+" -> "+data.servers().get(result.best().server(i)).name());}
-            if(flags.containsKey("preview")){
-                SwingUtilities.invokeAndWait(()->{try{style();Dashboard dashboard=new Dashboard();dashboard.data=data;dashboard.loadDataForPreview(data);dashboard.displayResult(e,result);dashboard.setSize(1440,1050);layout(dashboard);BufferedImage image=new BufferedImage(1440,1050,BufferedImage.TYPE_INT_RGB);Graphics2D g=image.createGraphics();Visuals.quality(g);dashboard.printAll(g);g.dispose();ImageIO.write(image,"png",Path.of(flags.get("preview")).toFile());}catch(Exception ex){throw new RuntimeException(ex);}});
-            }else CsvFiles.export(output,e,result);
             return;
         }
         DisplaySettings.configure(flags.get("ui-scale"));
-        if(GraphicsEnvironment.isHeadless()){System.err.println("No graphical display. Use --cli, --compare or --self-test. Run normally on your desktop for the dashboard.");System.exit(2);}
-        SwingUtilities.invokeLater(()->{
-            style();JFrame frame=new JFrame("Service Placement Lab - Optimization Methods");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);Dashboard dashboard=new Dashboard();frame.setContentPane(dashboard);
-            Rectangle available=GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-            frame.setMinimumSize(new Dimension(Math.min(1180,available.width),Math.min(740,available.height)));
-            frame.setSize(Math.min(1440,available.width),Math.min(940,available.height));
-            frame.setLocationRelativeTo(null);frame.setExtendedState(JFrame.MAXIMIZED_BOTH);frame.setVisible(true);
-            if(flags.containsKey("demo"))dashboard.run.doClick();
-        });
+        if (GraphicsEnvironment.isHeadless())
+            throw new IllegalStateException(
+                    "No graphical display. Use --cli, --study or --self-test.");
+        SwingUtilities.invokeLater(
+                () -> {
+                    style();
+                    JFrame frame = new JFrame("Service Placement Lab - Optimization Methods");
+                    Dashboard dashboard = flags.containsKey("original") ? new Dashboard() : null;
+                    AssessmentDashboard assessment =
+                            dashboard == null ? new AssessmentDashboard() : null;
+                    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                    frame.setContentPane(dashboard != null ? dashboard : assessment);
+                    Rectangle available =
+                            GraphicsEnvironment.getLocalGraphicsEnvironment()
+                                    .getMaximumWindowBounds();
+                    frame.setMinimumSize(
+                            new Dimension(
+                                    Math.min(1180, available.width),
+                                    Math.min(740, available.height)));
+                    frame.setSize(Math.min(1440, available.width), Math.min(940, available.height));
+                    frame.setLocationRelativeTo(null);
+                    frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+                    frame.setVisible(true);
+                    if (assessment != null) {
+                        if (flags.containsKey("ten-demo")) assessment.compareTen.doClick();
+                        else if (flags.containsKey("demo")) assessment.start(false);
+                        else if (flags.containsKey("study-demo")) assessment.experiments.doClick();
+                    } else if (flags.containsKey("study-demo")) {
+                        dashboard.tabs.setSelectedIndex(2);
+                        dashboard.compare.doClick();
+                    } else if (flags.containsKey("demo")) dashboard.run.doClick();
+                });
     }
-    static void style(){try{UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());}catch(Exception ignored){}UIManager.put("Label.font",new Font("SansSerif",Font.PLAIN,12));UIManager.put("Panel.background",Visuals.BACK);UIManager.put("TabbedPane.selected",Color.WHITE);}
-    static void layout(Container c){c.doLayout();for(Component child:c.getComponents())if(child instanceof Container container)layout(container);}
+
+    static void style() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        } catch (Exception ignored) {
+        }
+        UIManager.put("Label.font", new Font("SansSerif", Font.PLAIN, 12));
+        UIManager.put("Panel.background", Visuals.BACK);
+        UIManager.put("TabbedPane.selected", Color.WHITE);
+    }
+
+    static void layout(Container container) {
+        container.doLayout();
+        for (Component child : container.getComponents())
+            if (child instanceof Container c) layout(c);
+    }
 }
