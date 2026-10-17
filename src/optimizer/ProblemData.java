@@ -5,17 +5,12 @@ import java.util.*;
 /** Known inputs, separate from the service-to-server decisions. Units: CPU cores, GB, ms. */
 public record ProblemData(
         String name, List<Server> servers, List<Service> services, boolean assessment) {
-    public ProblemData(String name, List<Server> servers, List<Service> services) {
-        this(name, servers, services, false);
-    }
-
     public record Server(
             String name,
             double cpu,
             double ram,
             double storage,
             double latencyMs,
-            double costPerCpu,
             int gpu,
             int maxServices,
             double speed,
@@ -23,28 +18,6 @@ public record ProblemData(
             double peakPower,
             double busyPrice,
             double bandwidth) {
-        public Server(
-                String name,
-                double cpu,
-                double ram,
-                double storage,
-                double latencyMs,
-                double costPerCpu) {
-            this(
-                    name,
-                    cpu,
-                    ram,
-                    storage,
-                    latencyMs,
-                    costPerCpu,
-                    0,
-                    Integer.MAX_VALUE,
-                    1,
-                    0,
-                    0,
-                    0,
-                    1_000_000);
-        }
     }
 
     public record Service(
@@ -52,27 +25,23 @@ public record ProblemData(
             double cpu,
             double ram,
             double storage,
-            double latencyValue,
             double work,
             int gpu,
             double payload,
             double maxLatency) {
-        public Service(String name, double cpu, double ram, double storage, double latencyValue) {
-            this(name, cpu, ram, storage, latencyValue, 0, 0, 0, Double.MAX_VALUE);
-        }
     }
 
     public ProblemData {
         servers = List.copyOf(servers);
         services = List.copyOf(services);
-        if (servers.isEmpty() || services.isEmpty())
-            throw new IllegalArgumentException("Empty problem");
+        if (servers.size() != 4 || services.size() != 12 || !assessment)
+            throw new IllegalArgumentException("Use the assessment dataset: 4 servers and 12 services");
         Set<String> names = new HashSet<>();
         for (Server s : servers) {
             if (s.name().isBlank() || !names.add(s.name()))
                 throw new IllegalArgumentException("Duplicate/blank server name");
             positive(s.cpu(), s.ram(), s.storage());
-            nonnegative(s.latencyMs(), s.costPerCpu());
+            nonnegative(s.latencyMs());
             if (assessment) {
                 if (!Double.isFinite(s.speed()) || s.speed() <= 0)
                     throw new IllegalArgumentException(
@@ -90,7 +59,7 @@ public record ProblemData(
         for (Service s : services) {
             if (s.name().isBlank() || !names.add(s.name()))
                 throw new IllegalArgumentException("Duplicate/blank service name");
-            nonnegative(s.cpu(), s.ram(), s.storage(), s.latencyValue());
+            nonnegative(s.cpu(), s.ram(), s.storage());
             if (assessment) {
                 positive(s.work());
                 nonnegative(s.gpu(), s.payload(), s.maxLatency());
@@ -118,31 +87,6 @@ public record ProblemData(
         return total;
     }
 
-    /**
-     * Prefer the actual CSVs next to the project or JAR, including when launched from another
-     * folder.
-     */
-    public static ProblemData supplied() {
-        try {
-            java.nio.file.Path folder = java.nio.file.Path.of("data");
-            if (!java.nio.file.Files.exists(folder.resolve("servers.csv"))) {
-                java.nio.file.Path code =
-                        java.nio.file.Path.of(
-                                ProblemData.class
-                                        .getProtectionDomain()
-                                        .getCodeSource()
-                                        .getLocation()
-                                        .toURI());
-                folder = code.getParent().resolve("data");
-            }
-            if (java.nio.file.Files.exists(folder.resolve("servers.csv")))
-                return CsvFiles.read(folder);
-            return demo(); // The same supplied values allow an isolated JAR to open.
-        } catch (Exception ex) {
-            throw new IllegalStateException("Could not read supplied data: " + ex.getMessage(), ex);
-        }
-    }
-
     public static ProblemData assessmentSupplied() {
         try {
             java.nio.file.Path folder = java.nio.file.Path.of("data", "assessment");
@@ -168,23 +112,23 @@ public record ProblemData(
         return new ProblemData(
                 "assessment-latency-v1",
                 List.of(
-                        new Server("A", 16, 32, 160, 18, 0, 0, 4, 12, 70, 150, .003, 500),
-                        new Server("B", 24, 48, 250, 30, 0, 0, 5, 20, 95, 210, .005, 800),
-                        new Server("C", 32, 64, 400, 60, 0, 2, 5, 34, 140, 290, .010, 1200),
-                        new Server("D", 20, 40, 240, 42, 0, 1, 4, 24, 115, 235, .007, 650)),
+                        new Server("A", 16, 32, 160, 18, 0, 4, 12, 70, 150, .003, 500),
+                        new Server("B", 24, 48, 250, 30, 0, 5, 20, 95, 210, .005, 800),
+                        new Server("C", 32, 64, 400, 60, 2, 5, 34, 140, 290, .010, 1200),
+                        new Server("D", 20, 40, 240, 42, 1, 4, 24, 115, 235, .007, 650)),
                 List.of(
-                        new Service("S01", 4, 8, 30, 0, 90, 0, .5, 55),
-                                new Service("S02", 6, 12, 40, 0, 140, 0, 1, 95),
-                        new Service("S03", 5, 10, 50, 0, 120, 0, 1.5, 60),
-                                new Service("S04", 7, 14, 60, 0, 175, 0, .8, 75),
-                        new Service("S05", 3, 6, 25, 0, 65, 0, .6, 100),
-                                new Service("S06", 8, 16, 70, 0, 210, 1, 2, 100),
-                        new Service("S07", 5, 10, 45, 0, 130, 0, 1.2, 65),
-                                new Service("S08", 4, 8, 40, 0, 100, 0, .5, 75),
-                        new Service("S09", 6, 12, 55, 0, 165, 1, 1, 80),
-                                new Service("S10", 3, 6, 30, 0, 75, 0, .3, 95),
-                        new Service("S11", 7, 14, 75, 0, 190, 1, 2.5, 105),
-                                new Service("S12", 5, 10, 45, 0, 145, 0, .8, 80)),
+                        new Service("S01", 4, 8, 30, 90, 0, .5, 55),
+                                new Service("S02", 6, 12, 40, 140, 0, 1, 95),
+                        new Service("S03", 5, 10, 50, 120, 0, 1.5, 60),
+                                new Service("S04", 7, 14, 60, 175, 0, .8, 75),
+                        new Service("S05", 3, 6, 25, 65, 0, .6, 100),
+                                new Service("S06", 8, 16, 70, 210, 1, 2, 100),
+                        new Service("S07", 5, 10, 45, 130, 0, 1.2, 65),
+                                new Service("S08", 4, 8, 40, 100, 0, .5, 75),
+                        new Service("S09", 6, 12, 55, 165, 1, 1, 80),
+                                new Service("S10", 3, 6, 30, 75, 0, .3, 95),
+                        new Service("S11", 7, 14, 75, 190, 1, 2.5, 105),
+                                new Service("S12", 5, 10, 45, 145, 0, .8, 80)),
                 true);
     }
 
@@ -192,21 +136,4 @@ public record ProblemData(
         return new Candidate(new int[] {0, 2, 0, 3, 2, 2, 0, 3, 3, 2, 2, 1});
     }
 
-    public static ProblemData demo() {
-        return new ProblemData(
-                "godar-4x12-v1",
-                List.of(
-                        new Server("S1", 48, 96, 1000, 20, .08),
-                                new Server("S2", 24, 192, 1200, 35, .05),
-                        new Server("S3", 16, 64, 4000, 50, .025),
-                                new Server("S4", 20, 48, 500, 5, .06)),
-                List.of(
-                        new Service("Auth", 4, 8, 20, 9), new Service("Database", 8, 48, 600, 5),
-                        new Service("Cache", 4, 32, 10, 8), new Service("Web", 4, 8, 30, 10),
-                        new Service("Video", 16, 16, 200, 2),
-                                new Service("Analytics", 10, 24, 400, 2),
-                        new Service("Search", 8, 28, 150, 6), new Service("Email", 2, 4, 50, 3),
-                        new Service("Files", 2, 8, 1200, 3), new Service("Gateway", 6, 8, 20, 10),
-                        new Service("Backup", 2, 4, 900, 1), new Service("ML", 12, 24, 100, 4)));
-    }
 }

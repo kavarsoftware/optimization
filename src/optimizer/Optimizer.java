@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 
 /** GRASP: randomized capacity-aware construction, strict local descent, independent restarts. */
 public final class Optimizer {
-    public static final String VERSION = "assessment-portfolio-4.0";
+    public static final String VERSION = "placement-simple-1.0";
 
     public record Progress(
             int evaluations,
@@ -51,10 +51,8 @@ public final class Optimizer {
         Context c = new Context(evaluator, method, config, listener, cancelled, events, control);
         String impossible = necessaryCheck(evaluator);
         if (impossible != null) c.reason = impossible;
-        if (method.advanced()) AdvancedSearch.run(c);
-        else
             while (c.running()) {
-                if (method == SearchMethod.RANDOM || method == SearchMethod.TARGET) {
+                if (method == SearchMethod.RANDOM) {
                     int[] values = new int[evaluator.data.services().size()];
                     for (int i = 0; i < values.length; i++)
                         values[i] = c.random.nextInt(evaluator.data.servers().size());
@@ -72,7 +70,7 @@ public final class Optimizer {
                     c.consecutiveFailures = 0;
                     c.restarts++;
                     Evaluation first = c.check(start, SearchEvent.Type.CONSTRUCT, null, null);
-                    if (method == SearchMethod.HYBRID && first.feasible() && c.running())
+                    if (method == SearchMethod.LOCAL_SEARCH && first.feasible() && c.running())
                         descend(c, start, first);
                 }
             }
@@ -117,8 +115,7 @@ public final class Optimizer {
                         total,
                         requested.batchSize(),
                         0,
-                        requested.greediness(),
-                        requested.target());
+                        requested.greediness());
         int[] assignment = new int[e.data.services().size()];
         Evaluator.Work work = e.newWork(false);
         List<SearchResult.Point> trace = new ArrayList<>();
@@ -276,8 +273,7 @@ public final class Optimizer {
             ramCapacity += server.ram();
             storageCapacity += server.storage();
         }
-        if (e.objective == Evaluator.Objective.ASSESSMENT
-                && (gpuDemand > gpuCapacity || slots < e.data.services().size()))
+        if ((gpuDemand > gpuCapacity || slots < e.data.services().size()))
             return "Infeasible: total GPU demand or service slots exceed capacity";
         if (cpu > cpuCapacity + 1e-9
                 || ram > ramCapacity + 1e-9
@@ -332,7 +328,7 @@ public final class Optimizer {
                 if (cpu[s] + task.cpu() > host.cpu() + 1e-9
                         || ram[s] + task.ram() > host.ram() + 1e-9
                         || storage[s] + task.storage() > host.storage() + 1e-9) continue;
-                if (c.e.objective == Evaluator.Objective.ASSESSMENT) {
+                {
                     int gpuUsed = 0;
                     for (int previous = 0; previous < k; previous++)
                         if (values[order[previous]] == s)
@@ -341,10 +337,6 @@ public final class Optimizer {
                             || counts[s] >= host.maxServices()
                             || gpuUsed + task.gpu() > host.gpu()) continue;
                 }
-                int deficit = 0;
-                for (int j = 0; j < m; j++)
-                    deficit += Math.max(0, c.e.minServices - counts[j] - (j == s ? 1 : 0));
-                if (deficit > n - k - 1) continue;
                 options.add(s);
                 double value = c.e.contribution(i, s);
                 low = Math.min(low, value);
@@ -439,7 +431,6 @@ public final class Optimizer {
         final Consumer<SearchEvent> events;
         final SearchControl control;
         final BitSet seen;
-        final Set<Long> sparseSeen;
         final List<SearchResult.Point> trace = new ArrayList<>();
         Candidate best;
         Evaluation bestEvaluation;
@@ -453,7 +444,7 @@ public final class Optimizer {
                 consecutiveFailures;
         double checkpointBest = Double.POSITIVE_INFINITY;
         String reason;
-        int eventCount, movesShown, swapsShown, acceptsShown, localShown, startsShown, samplesShown;
+        int eventCount;
 
         Context(
                 Evaluator e,
@@ -471,8 +462,7 @@ public final class Optimizer {
             random = new Random(config.seed());
             this.events = events;
             this.control = control;
-            seen = e.data.searchSpace() <= 100_000_000 ? new BitSet() : null;
-            sparseSeen = seen == null ? new HashSet<>() : null;
+            seen = new BitSet();
         }
 
         boolean running() {
@@ -487,16 +477,14 @@ public final class Optimizer {
                 SearchEvent.Type type,
                 Candidate before,
                 Evaluation beforeEvaluation) {
-            if (control != null) control.beforeEvaluation();
+            if (control != null) {
+                control.beforeEvaluation();
+                if (control.stopped()) { reason = "Cancelled by user"; return e.evaluate(null); }
+            }
             Evaluation evaluation = e.evaluate(candidate);
             evaluations++;
             long code = candidate.code(e.data.servers().size());
-            if (seen != null) {
-                if (!seen.get((int) code)) {
-                    seen.set((int) code);
-                    unique++;
-                }
-            } else if (sparseSeen.add(code)) unique++;
+            if (!seen.get((int) code)) { seen.set((int) code); unique++; }
             boolean improved = false;
             if (evaluation.feasible()) {
                 feasible++;
@@ -508,16 +496,12 @@ public final class Optimizer {
             }
             if (improved) record();
             emit(type, before, beforeEvaluation, candidate, evaluation, improved, "");
-            if (method == SearchMethod.TARGET
-                    && best != null
-                    && bestEvaluation.score() <= config.target() + 1e-10)
-                reason = "Target reached: score <= " + config.target();
             if (evaluations % config.batchSize() == 0) {
                 double value = best == null ? Double.POSITIVE_INFINITY : bestEvaluation.score();
                 stagnant = value < checkpointBest - 1e-10 ? 0 : stagnant + 1;
                 checkpointBest = value;
                 if (reason == null
-                        && (method == SearchMethod.HYBRID || method == SearchMethod.CONSTRUCTIVE)
+                        && method == SearchMethod.LOCAL_SEARCH
                         && best != null
                         && config.patience() > 0
                         && stagnant >= config.patience())
@@ -575,22 +559,10 @@ public final class Optimizer {
                 Evaluation evaluation,
                 boolean improved,
                 String detail) {
-            if (events == null
-                    || (eventCount >= 511
-                            && type != SearchEvent.Type.FINISH
-                            && !(control != null && control.paused()))) return;
-            boolean selected =
-                    (control != null && control.paused())
-                            || improved
-                            || switch (type) {
-                                case CONSTRUCT -> startsShown++ < 4;
-                                case RANDOM_SAMPLE -> samplesShown++ < 12;
-                                case MOVE -> movesShown++ < 12;
-                                case SWAP -> swapsShown++ < 12;
-                                case ACCEPT -> acceptsShown++ < 8;
-                                case LOCAL_OPTIMUM -> localShown++ < 4;
-                                case EXACT_SCAN, CHECKPOINT, FINISH -> true;
-                            };
+            if (events == null) return;
+            boolean selected = (control != null && control.paused()) || improved
+                    || evaluations <= 12 || evaluations % 1000 == 0
+                    || type == SearchEvent.Type.CHECKPOINT || type == SearchEvent.Type.FINISH;
             if (selected)
                 events.accept(
                         new SearchEvent(

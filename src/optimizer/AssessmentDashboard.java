@@ -11,33 +11,30 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 
-/** Assessment mode keeps the earlier CSV project intact and uses the PDF benchmark separately. */
+/** The required benchmark interface: configure, search, inspect, experiment. */
 public final class AssessmentDashboard extends JPanel {
     final JComboBox<SearchMethod> method =
             new JComboBox<>(
                     new SearchMethod[] {
-                        SearchMethod.HYBRID,
+                        SearchMethod.LOCAL_SEARCH,
                         SearchMethod.EXACT,
-                        SearchMethod.RANDOM,
-                        SearchMethod.TARGET
+                        SearchMethod.RANDOM
                     });
-    final JSpinner seed = Dashboard.spinner(2026L, Long.MIN_VALUE, Long.MAX_VALUE, 1L),
-            budget = Dashboard.spinner(20000, 1, 1_000_000, 1000),
-            batch = Dashboard.spinner(10000, 1, 1000000, 1000),
-            patience = Dashboard.spinner(1, 0, 100, 1),
-            greed = Dashboard.spinner(.35, 0., 1., .05),
-            target = Dashboard.spinner(.8, 0., 10., .01),
-            pace = Dashboard.spinner(70, 0, 500, 10);
-    final JButton start = Dashboard.button("Start", BLUE),
-            pause = Dashboard.button("Pause", INK),
-            step = Dashboard.button("Step", INK),
-            stop = Dashboard.button("Stop", INK),
-            reset = Dashboard.button("Reset run", INK),
-            reference = Dashboard.button("Reference check", TEAL),
-            defaults = Dashboard.button("Restore PDF data", INK),
-            export = Dashboard.button("Export run", INK),
-            experiments = Dashboard.button("Run 20-seed assessment study", BLUE),
-            compareTen = Dashboard.button("Compare 10 algorithms", TEAL);
+    final JSpinner seed = Ui.spinner(2026L, Long.MIN_VALUE, Long.MAX_VALUE, 1L),
+            budget = Ui.spinner(20000, 1, 1_000_000, 1000),
+            batch = Ui.spinner(10000, 1, 1000000, 1000),
+            patience = Ui.spinner(1, 0, 100, 1),
+            greed = Ui.spinner(.35, 0., 1., .05),
+            pace = Ui.spinner(70, 0, 500, 10);
+    final JButton start = Ui.button("Start", BLUE),
+            pause = Ui.button("Pause", INK),
+            step = Ui.button("Step", INK),
+            stop = Ui.button("Stop", INK),
+            reset = Ui.button("Reset run", INK),
+            reference = Ui.button("Reference check", TEAL),
+            defaults = Ui.button("Restore PDF data", INK),
+            export = Ui.button("Export run", INK),
+            experiments = Ui.button("Run 10-seed study", BLUE);
     final JLabel
             status =
                     new JLabel(
@@ -48,13 +45,12 @@ public final class AssessmentDashboard extends JPanel {
             comparison = new JLabel("No feasible result yet");
     final JLabel[] metrics = new JLabel[6];
     final JTabbedPane tabs = new JTabbedPane(), states = new JTabbedPane();
-    final ReplayCanvas currentCanvas = new ReplayCanvas(), bestCanvas = new ReplayCanvas();
-    final ReplayPanel replay = new ReplayPanel();
+    final AssignmentCanvas currentCanvas = new AssignmentCanvas(), bestCanvas = new AssignmentCanvas();
     final AssessmentPlots progress = new AssessmentPlots(false),
             timeline = new AssessmentPlots(true);
     final DefaultTableModel
             serverModel =
-                    Dashboard.model(
+                    Ui.model(
                             true,
                             "Server",
                             "vCPU",
@@ -69,7 +65,7 @@ public final class AssessmentDashboard extends JPanel {
                             "RTT ms",
                             "Bandwidth Mb/s"),
             serviceModel =
-                    Dashboard.model(
+                    Ui.model(
                             true,
                             "Service ID",
                             "vCPU",
@@ -80,7 +76,7 @@ public final class AssessmentDashboard extends JPanel {
                             "Payload MB",
                             "Max network ms"),
             networkModel =
-                    Dashboard.model(
+                    Ui.model(
                             false,
                             "Service",
                             "Host",
@@ -94,7 +90,7 @@ public final class AssessmentDashboard extends JPanel {
                             "SLA status",
                             "Compute s"),
             assignmentModel =
-                    Dashboard.model(
+                    Ui.model(
                             false,
                             "Service",
                             "Host",
@@ -105,8 +101,8 @@ public final class AssessmentDashboard extends JPanel {
                             "Work GI",
                             "Network ms",
                             "SLA status");
-    final JTable serverTable = Dashboard.wideTable(serverModel),
-            serviceTable = Dashboard.wideTable(serviceModel);
+    final JTable serverTable = Ui.wideTable(serverModel),
+            serviceTable = Ui.wideTable(serviceModel);
     final JTextArea log = new JTextArea(),
             record = new JTextArea(),
             experimentLog = new JTextArea();
@@ -127,7 +123,7 @@ public final class AssessmentDashboard extends JPanel {
     final List<StudyCharts> studyCharts = new ArrayList<>();
     final DefaultTableModel
             studyTable =
-                    Dashboard.model(
+                    Ui.model(
                             false,
                             "Method",
                             "Best J",
@@ -135,53 +131,38 @@ public final class AssessmentDashboard extends JPanel {
                             "Median J",
                             "Worst J",
                             "SD J",
-                            "Target hit %",
+                            "Feasible runs",
                             "Exact hits %",
                             "Evaluations",
                             "Unique %",
                             "Mean ms",
-                            "Confidence"),
-            fairTable =
-                    Dashboard.model(
-                            false,
-                            "Protocol",
-                            "Method",
-                            "Mean J",
-                            "Worst J",
-                            "Mean evaluations",
-                            "Mean ms");
+                            "Confidence");
     final JTabbedPane studyViews = new JTabbedPane();
-    final PortfolioPanel portfolio = new PortfolioPanel(this::compareTen);
     JPanel controlRows, searchSettings, metricBoxes;
 
     public AssessmentDashboard() {
         super(new BorderLayout(0, 8));
         setBackground(BACK);
         setBorder(new EmptyBorder(10, 16, 10, 16));
-        JPanel header = Dashboard.panel(new BorderLayout(12, 0));
+        JPanel header = Ui.panel(new BorderLayout(12, 0));
         header.setBorder(null);
         JLabel title = new JLabel("Service Placement Lab / Assessment benchmark");
         title.setFont(new Font("SansSerif", Font.BOLD, 23));
         title.setForeground(INK);
         header.add(title, BorderLayout.CENTER);
-        JButton original = Dashboard.button("Original CSV project", INK);
-        original.addActionListener(e -> openOriginal());
-        header.add(original, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
-        JPanel body = Dashboard.panel(new BorderLayout(0, 7));
+        JPanel body = Ui.panel(new BorderLayout(0, 7));
         body.setBorder(null);
         body.add(controls(), BorderLayout.NORTH);
         tabs.setFont(new Font("SansSerif", Font.BOLD, 13));
         tabs.addTab("Live search", live());
         tabs.addTab("Configuration", configuration());
         tabs.addTab("Performance", progress);
-        tabs.addTab("Network / SLAs", Dashboard.scrollTable(slaTable(networkModel, 9)));
+        tabs.addTab("Network / SLAs", Ui.scrollTable(slaTable(networkModel, 9)));
         tabs.addTab("Compute timeline", timeline);
-        tabs.addTab("Assignments", Dashboard.scrollTable(slaTable(assignmentModel, 8)));
+        tabs.addTab("Assignments", Ui.scrollTable(slaTable(assignmentModel, 8)));
         tabs.addTab("Run record / log", records());
         tabs.addTab("Experiments", experiments());
-        tabs.addTab("Lecture / assessment guide", guide());
-        tabs.addTab("Recorded replay", replay);
         tabs.addChangeListener(
                 event -> {
                     boolean experimentsVisible = tabs.getSelectedIndex() == 7;
@@ -191,7 +172,7 @@ public final class AssessmentDashboard extends JPanel {
                 });
         body.add(tabs, BorderLayout.CENTER);
         add(body, BorderLayout.CENTER);
-        JPanel footer = Dashboard.panel(new GridLayout(2, 1));
+        JPanel footer = Ui.panel(new GridLayout(2, 1));
         footer.setBorder(null);
         status.setFont(new Font("SansSerif", Font.PLAIN, 11));
         proof.setFont(new Font("SansSerif", Font.BOLD, 12));
@@ -206,8 +187,6 @@ public final class AssessmentDashboard extends JPanel {
             area.setWrapStyleWord(true);
             area.setBorder(new EmptyBorder(12, 14, 12, 14));
         }
-        currentCanvas.setLive(true);
-        bestCanvas.setLive(true);
         load(data);
         setBusy(false);
         export.setEnabled(false);
@@ -250,11 +229,21 @@ public final class AssessmentDashboard extends JPanel {
                 });
         export.addActionListener(e -> export());
         experiments.addActionListener(e -> experiment());
-        compareTen.addActionListener(e -> compareTen());
+        method.addActionListener(e -> updateMethodControls());
+        updateMethodControls();
+    }
+
+    private void updateMethodControls() {
+        boolean exact = method.getSelectedItem() == SearchMethod.EXACT;
+        boolean local = method.getSelectedItem() == SearchMethod.LOCAL_SEARCH;
+        seed.setEnabled(!busy && !exact);
+        budget.setEnabled(!busy && !exact);
+        for (JSpinner parameter : new JSpinner[] {batch, patience, greed}) parameter.setEnabled(!busy && local);
+        budget.setToolTipText(exact ? "Exact checks all 4^12 assignments; the cap does not apply." : "Maximum complete candidate evaluations");
     }
 
     private JTable slaTable(DefaultTableModel model, int statusColumn) {
-        JTable table = Dashboard.table(model);
+        JTable table = Ui.table(model);
         table.setDefaultRenderer(
                 Object.class,
                 new javax.swing.table.DefaultTableCellRenderer() {
@@ -286,26 +275,25 @@ public final class AssessmentDashboard extends JPanel {
     }
 
     private JPanel controls() {
-        JPanel panel = Dashboard.panel(new BorderLayout(0, 5));
+        JPanel panel = Ui.panel(new BorderLayout(0, 5));
         panel.setBorder(null);
-        JPanel rows = Dashboard.panel(new BorderLayout(0, 5));
+        JPanel rows = Ui.panel(new BorderLayout(0, 5));
         controlRows = rows;
         rows.setBorder(null);
-        JPanel first = Dashboard.flow();
+        JPanel first = Ui.flow();
         first.add(new JLabel("Method"));
         first.add(method);
         for (JButton button : new JButton[] {start, pause, step, stop, reset, reference, export})
             first.add(button);
         rows.add(first, BorderLayout.NORTH);
-        JPanel second = Dashboard.flow();
+        JPanel second = Ui.flow();
         searchSettings = second;
-        Dashboard.addField(second, "Seed", seed);
-        Dashboard.addField(second, "Eval cap", budget);
-        Dashboard.addField(second, "Batch", batch);
-        Dashboard.addField(second, "Patience", patience);
-        Dashboard.addField(second, "Greediness", greed);
-        Dashboard.addField(second, "Target J", target);
-        Dashboard.addField(second, "View ms", pace);
+        Ui.addField(second, "Seed", seed);
+        Ui.addField(second, "Eval cap", budget);
+        Ui.addField(second, "Batch", batch);
+        Ui.addField(second, "Patience", patience);
+        Ui.addField(second, "Greediness", greed);
+        Ui.addField(second, "View ms", pace);
         rows.add(second, BorderLayout.CENTER);
         panel.add(rows, BorderLayout.NORTH);
         JPanel boxes = new JPanel(new GridLayout(1, 6, 8, 0));
@@ -321,16 +309,16 @@ public final class AssessmentDashboard extends JPanel {
         };
         for (int i = 0; i < 6; i++) {
             metrics[i] = new JLabel("--");
-            boxes.add(Dashboard.metric(names[i], metrics[i]));
+            boxes.add(Ui.metric(names[i], metrics[i]));
         }
         panel.add(boxes, BorderLayout.CENTER);
         return panel;
     }
 
     private JPanel live() {
-        JPanel panel = Dashboard.panel(new BorderLayout(0, 5));
+        JPanel panel = Ui.panel(new BorderLayout(0, 5));
         panel.setBorder(null);
-        JPanel labels = Dashboard.panel(new GridLayout(2, 1));
+        JPanel labels = Ui.panel(new GridLayout(2, 1));
         labels.setBorder(new EmptyBorder(5, 12, 5, 12));
         labels.add(iteration);
         labels.add(comparison);
@@ -342,8 +330,8 @@ public final class AssessmentDashboard extends JPanel {
     }
 
     private JPanel configuration() {
-        JPanel panel = Dashboard.panel(new BorderLayout(0, 6));
-        JPanel actions = Dashboard.flow();
+        JPanel panel = Ui.panel(new BorderLayout(0, 6));
+        JPanel actions = Ui.flow();
         actions.add(defaults);
         actions.add(
                 new JLabel(
@@ -353,13 +341,13 @@ public final class AssessmentDashboard extends JPanel {
         JSplitPane split =
                 new JSplitPane(
                         JSplitPane.VERTICAL_SPLIT,
-                        Dashboard.section(
+                        Ui.section(
                                 "Servers: capacities, throughput, power, busy-time price and"
                                         + " network",
-                                Dashboard.scrollTable(serverTable)),
-                        Dashboard.section(
+                                Ui.scrollTable(serverTable)),
+                        Ui.section(
                                 "Services: reserved resources, work, payload and hard network SLA",
-                                Dashboard.scrollTable(serviceTable)));
+                                Ui.scrollTable(serviceTable)));
         split.setResizeWeight(.37);
         split.setDividerLocation(160);
         panel.add(split, BorderLayout.CENTER);
@@ -375,15 +363,14 @@ public final class AssessmentDashboard extends JPanel {
     }
 
     private JComponent experiments() {
-        JPanel panel = Dashboard.panel(new BorderLayout(8, 8));
-        JPanel buttons = Dashboard.flow();
+        JPanel panel = Ui.panel(new BorderLayout(8, 8));
+        JPanel buttons = Ui.flow();
         buttons.add(experiments);
-        buttons.add(compareTen);
         buttons.add(new JLabel("Same assessment data / paired seeds / measured results"));
         panel.add(buttons, BorderLayout.NORTH);
         studyViews.addTab("Progress / results", new JScrollPane(experimentLog));
         studyViews.addTab(
-                "Statistics / confidence", Dashboard.scrollTable(Dashboard.wideTable(studyTable)));
+                "Statistics / confidence", Ui.scrollTable(Ui.wideTable(studyTable)));
         JTabbedPane charts = new JTabbedPane();
         for (StudyCharts.Kind kind : StudyCharts.Kind.values()) {
             StudyCharts chart = new StudyCharts(kind);
@@ -391,16 +378,8 @@ public final class AssessmentDashboard extends JPanel {
             charts.addTab(kind.toString(), chart);
         }
         studyViews.addTab("Charts", charts);
-        studyViews.addTab("Fair budgets", Dashboard.scrollTable(Dashboard.table(fairTable)));
-        studyViews.addTab("Compare 10 algorithms", portfolio);
         panel.add(studyViews, BorderLayout.CENTER);
         return panel;
-    }
-
-    private JComponent guide() {
-        JEditorPane guide = new JEditorPane("text/html", AssessmentGuide.html());
-        guide.setEditable(false);
-        return new JScrollPane(guide);
     }
 
     void load(ProblemData data) {
@@ -452,7 +431,6 @@ public final class AssessmentDashboard extends JPanel {
                             number(serverModel, r, 2),
                             number(serverModel, r, 3),
                             number(serverModel, r, 10),
-                            0,
                             integer(serverModel, r, 4),
                             integer(serverModel, r, 5),
                             number(serverModel, r, 6),
@@ -467,7 +445,6 @@ public final class AssessmentDashboard extends JPanel {
                             number(serviceModel, r, 1),
                             number(serviceModel, r, 2),
                             number(serviceModel, r, 3),
-                            0,
                             number(serviceModel, r, 4),
                             integer(serviceModel, r, 5),
                             number(serviceModel, r, 6),
@@ -491,22 +468,18 @@ public final class AssessmentDashboard extends JPanel {
 
     private SearchConfig config() {
         int cap = ((Number) budget.getValue()).intValue();
-        SearchMethod selected = (SearchMethod) method.getSelectedItem();
-        if (selected == SearchMethod.RANDOM) cap = 100000;
-        if (selected == SearchMethod.TARGET) cap = 500000;
         return new SearchConfig(
                 ((Number) seed.getValue()).longValue(),
                 cap,
                 ((Number) batch.getValue()).intValue(),
                 ((Number) patience.getValue()).intValue(),
-                ((Number) greed.getValue()).doubleValue(),
-                ((Number) target.getValue()).doubleValue());
+                ((Number) greed.getValue()).doubleValue());
     }
 
     void start(boolean paused) {
         try {
             data = read();
-            evaluator = new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
+            evaluator = new Evaluator(data);
             SearchConfig config = config();
             SearchMethod selected = (SearchMethod) method.getSelectedItem();
             events = new ArrayList<>();
@@ -519,8 +492,6 @@ public final class AssessmentDashboard extends JPanel {
             if (paused) control.pause();
             currentCanvas.setData(data);
             bestCanvas.setData(data);
-            currentCanvas.setMinimumServices(0);
-            bestCanvas.setMinimumServices(0);
             proof.setText("Global optimum found? NO / searching");
             setBusy(true);
             pause.setText(paused ? "Resume" : "Pause");
@@ -613,10 +584,6 @@ public final class AssessmentDashboard extends JPanel {
         currentEvent = event;
         frameStart = System.nanoTime();
         currentCanvas.setEvent(event, 0);
-        currentCanvas.setComparison(
-                ResultComparison.step(evaluator, event, event.beforeEvaluation()),
-                history(),
-                "ACTUAL BEST J HISTORY");
         SearchEvent best =
                 new SearchEvent(
                         event.sequence(),
@@ -635,16 +602,6 @@ public final class AssessmentDashboard extends JPanel {
                         event.newBest(),
                         event.detail());
         bestCanvas.setEvent(best, 1);
-        bestCanvas.setComparison(
-                ResultComparison.between(
-                        evaluator,
-                        event.beforeEvaluation(),
-                        event.bestEvaluation(),
-                        "PREVIOUS STATE",
-                        "BEST FEASIBLE",
-                        "Best state from this same evaluation"),
-                history(),
-                "ACTUAL BEST J HISTORY");
         updateMetrics(event.bestEvaluation());
         network(event.candidate(), event.evaluation());
         timeline.set(data, event.best(), event.bestEvaluation());
@@ -667,22 +624,11 @@ public final class AssessmentDashboard extends JPanel {
         updateProof(event.bestEvaluation());
     }
 
-    private List<Double> history() {
-        List<Double> history = new ArrayList<>();
-        for (AssessmentPlots.Point point : points) history.add(point.value().score());
-        return history;
-    }
-
     private void animate() {
         if (currentEvent == null) return;
         double fraction = Math.min(1, (System.nanoTime() - frameStart) / 250_000_000.);
         currentCanvas.setEvent(currentEvent, fraction);
-        currentCanvas.advanceComparison(25);
-        bestCanvas.advanceComparison(25);
-        if (!recordingFrames
-                && fraction >= 1
-                && !currentCanvas.isComparisonPulsing()
-                && !bestCanvas.isComparisonPulsing()) motion.stop();
+        if (!recordingFrames && fraction >= 1) motion.stop();
     }
 
     private void updateMetrics(Evaluation value) {
@@ -798,7 +744,6 @@ public final class AssessmentDashboard extends JPanel {
                         + saved.toAbsolutePath()
                         + "\n\n"
                         + String.join("\n", CsvFiles.metadata(evaluator, result)));
-        replay.load(evaluator, result, events, false);
         updateMetrics(result.evaluation());
         network(result.best(), result.evaluation());
         timeline.set(data, result.best(), result.evaluation());
@@ -819,7 +764,7 @@ public final class AssessmentDashboard extends JPanel {
             record.setText(
                     "PDF reference check: this is an evaluated mapping, not an optimization run.");
             data = read();
-            evaluator = new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
+            evaluator = new Evaluator(data);
             Evaluation value = evaluator.evaluate(ProblemData.referenceAssignment());
             SearchEvent event =
                     new SearchEvent(
@@ -869,14 +814,12 @@ public final class AssessmentDashboard extends JPanel {
                     batch,
                     patience,
                     greed,
-                    target,
                     pace,
                     serverTable,
                     serviceTable,
-                    experiments,
-                    compareTen
+                    experiments
                 }) component.setEnabled(!value);
-        portfolio.setBusy(value);
+        updateMethodControls();
         pause.setEnabled(value);
         stop.setEnabled(value);
         step.setEnabled(true);
@@ -923,7 +866,7 @@ public final class AssessmentDashboard extends JPanel {
     private void experiment() {
         try {
             data = read();
-            Evaluator model = new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
+            Evaluator model = new Evaluator(data);
             clear();
             evaluator = model;
             SearchConfig settings = config();
@@ -946,21 +889,20 @@ public final class AssessmentDashboard extends JPanel {
                                     model,
                                     new SearchConfig(
                                             settings.seed(),
-                                            20000,
-                                            10000,
-                                            1,
-                                            settings.greediness(),
-                                            settings.target()),
-                                    20,
-                                    100000,
+                                            settings.budget(),
+                                            settings.batchSize(),
+                                            0,
+                                            settings.greediness()),
+                                    10,
+                                    settings.budget(),
                                     message -> publish(message),
                                     control::stopped);
                     ExperimentRunner.write(folder, measured);
                     AssessmentExperiments.additional(
                             folder,
                             model,
-                            settings.seed(),
-                            20,
+                            settings,
+                            10,
                             message -> publish(message),
                             control::stopped);
                     return measured;
@@ -982,7 +924,7 @@ public final class AssessmentDashboard extends JPanel {
                                 AssessmentExperiments.summary(study)
                                         + "\nSaved "
                                         + folder.toAbsolutePath());
-                        status.setText("Assessment study saved: " + folder.toAbsolutePath());
+                        status.setText((control.stopped() ? "Stopped; partial study saved: " : "Study saved: ") + folder.toAbsolutePath());
                     } catch (Exception ex) {
                         error(ex);
                     } finally {
@@ -994,103 +936,11 @@ public final class AssessmentDashboard extends JPanel {
             error(ex);
             setBusy(false);
         }
-    }
-
-    private record PortfolioUpdate(String message, ExperimentRunner.Study study) {}
-
-    void compareTen() {
-        if (busy) return;
-        try {
-            data = read();
-            Evaluator model = new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
-            SearchConfig settings =
-                    new SearchConfig(
-                            ((Number) portfolio.firstSeed.getValue()).longValue(),
-                            ((Number) portfolio.evaluations.getValue()).intValue(),
-                            10000,
-                            0,
-                            ((Number) greed.getValue()).doubleValue(),
-                            ((Number) target.getValue()).doubleValue());
-            int seeds = ((Number) portfolio.seeds.getValue()).intValue();
-            setBusy(true);
-            pause.setEnabled(false);
-            step.setEnabled(false);
-            control = new SearchControl(0);
-            tabs.setSelectedIndex(7);
-            studyViews.setSelectedIndex(4);
-            portfolio.begin();
-            status.setText("Comparing ten algorithms / exact reference first...");
-            proof.setText(
-                    "Comparison / Exact supplies the reference; all ten searches keep their own"
-                            + " best result.");
-            new SwingWorker<ExperimentRunner.Study, PortfolioUpdate>() {
-                final Path folder =
-                        Path.of(
-                                "results",
-                                "ten-algorithm-comparisons",
-                                "comparison-" + System.currentTimeMillis());
-
-                protected ExperimentRunner.Study doInBackground() throws Exception {
-                    var measured =
-                            AlgorithmComparison.run(
-                                    model,
-                                    settings,
-                                    seeds,
-                                    message -> publish(new PortfolioUpdate(message, null)),
-                                    partial -> publish(new PortfolioUpdate(null, partial)),
-                                    control::stopped);
-                    AlgorithmComparison.write(folder, measured);
-                    return measured;
-                }
-
-                protected void process(List<PortfolioUpdate> updates) {
-                    for (var update : updates) {
-                        if (update.message() != null) {
-                            portfolio.message(update.message());
-                            status.setText(update.message());
-                        }
-                        if (update.study() != null) portfolio.show(update.study(), null);
-                    }
-                }
-
-                protected void done() {
-                    try {
-                        var measured = get();
-                        showComparison(measured, folder);
-                        status.setText(
-                                (AlgorithmComparison.complete(measured)
-                                                ? "Ten-algorithm comparison complete: "
-                                                : "Partial comparison saved: ")
-                                        + folder.toAbsolutePath());
-                    } catch (Exception ex) {
-                        error(ex);
-                    } finally {
-                        setBusy(false);
-                    }
-                }
-            }.execute();
-        } catch (Exception ex) {
-            error(ex);
-            setBusy(false);
-        }
-    }
-
-    void showComparison(ExperimentRunner.Study measured, Path folder) {
-        portfolio.show(measured, folder);
-        exact = measured.exact();
-        exactModel = measured.evaluator();
-        proof.setText(
-                exact.provenOptimal(exactModel.data.searchSpace())
-                        ? "Comparison / Exact optimum proven / see each algorithm's gap and"
-                                + " optimum-hit rate."
-                        : "Comparison / Exact reference incomplete or no feasible solution / see"
-                                + " recorded status.");
     }
 
     void showStudy(ExperimentRunner.Study study) {
         this.study = study;
         studyTable.setRowCount(0);
-        fairTable.setRowCount(0);
         for (StudyCharts chart : studyCharts) chart.set(study);
         for (SearchMethod method : ExperimentRunner.MAIN_METHODS) {
             ExperimentRunner.Summary value = ExperimentRunner.summarize(study, method, "main");
@@ -1102,7 +952,7 @@ public final class AssessmentDashboard extends JPanel {
                         f(value.median()),
                         f(value.worst()),
                         f(value.sd()),
-                        value.successRate(),
+                        value.feasibleRuns(),
                         value.optimumRate(),
                         value.evaluations(),
                         100 * value.unique() / study.evaluator().data.searchSpace(),
@@ -1110,27 +960,6 @@ public final class AssessmentDashboard extends JPanel {
                         ExperimentRunner.confidence(study, value)
                     });
         }
-        for (String protocol : new String[] {"equal_budget", "srs_stop_budget"})
-            for (SearchMethod method :
-                    new SearchMethod[] {SearchMethod.RANDOM, SearchMethod.HYBRID}) {
-                ExperimentRunner.Summary value =
-                        ExperimentRunner.summarize(
-                                study,
-                                method,
-                                protocol.equals("srs_stop_budget") && method == SearchMethod.HYBRID
-                                        ? "main"
-                                        : protocol);
-                if (value.runs() > 0)
-                    fairTable.addRow(
-                            new Object[] {
-                                protocol,
-                                method,
-                                f(value.mean()),
-                                f(value.worst()),
-                                value.evaluations(),
-                                value.runtime()
-                            });
-            }
     }
 
     private void error(Exception ex) {
@@ -1143,15 +972,6 @@ public final class AssessmentDashboard extends JPanel {
                     errorMessage,
                     "Invalid configuration or run error",
                     JOptionPane.ERROR_MESSAGE);
-    }
-
-    private void openOriginal() {
-        JFrame frame = new JFrame("Original CSV project / weighted latency");
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        frame.setContentPane(new Dashboard());
-        frame.setSize(1440, 850);
-        frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
-        frame.setVisible(true);
     }
 
     static String f(double value) {

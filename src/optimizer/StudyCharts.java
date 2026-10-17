@@ -23,9 +23,7 @@ public final class StudyCharts extends JPanel {
         CONVERGENCE("Convergence"),
         EVALUATIONS("Evaluations"),
         QUALITY("Mean and range"),
-        DOTS("Seed results"),
-        SPACE("Search space"),
-        GROWTH("4^n growth");
+        DOTS("Seed results");
         final String title;
 
         Kind(String title) {
@@ -55,14 +53,12 @@ public final class StudyCharts extends JPanel {
 
     public static String name(SearchMethod method) {
         switch (method) {
-            case HYBRID:
-                return "SRS (my method)";
+            case LOCAL_SEARCH:
+                return "Restart local search";
             case EXACT:
                 return "Exact";
             case RANDOM:
                 return "Random";
-            case TARGET:
-                return "Target";
             default:
                 return method.shortName();
         }
@@ -70,12 +66,10 @@ public final class StudyCharts extends JPanel {
 
     private static Color color(SearchMethod method) {
         switch (method) {
-            case HYBRID:
+            case LOCAL_SEARCH:
                 return new Color(0, 153, 134);
             case EXACT:
                 return Visuals.BLUE;
-            case TARGET:
-                return new Color(205, 133, 30);
             default:
                 return new Color(126, 139, 158);
         }
@@ -90,11 +84,6 @@ public final class StudyCharts extends JPanel {
         top = 84;
         bottom = getHeight() - 90;
         text(g, kind.title, 24, 30, 20, Visuals.INK, true);
-        if (kind == Kind.GROWTH) {
-            growth(g);
-            g.dispose();
-            return;
-        }
         if (study == null) {
             text(g, "Run the study to compare measured results.", 24, 66, 15, Visuals.MUTED, false);
             g.dispose();
@@ -102,7 +91,7 @@ public final class StudyCharts extends JPanel {
         }
         text(
                 g,
-                study.evaluator().objective
+                "Assessment J"
                         + " / score unit: "
                         + ResultComparison.unit(study.evaluator())
                         + " / main protocol",
@@ -123,9 +112,6 @@ public final class StudyCharts extends JPanel {
                 break;
             case DOTS:
                 dots(g);
-                break;
-            case SPACE:
-                space(g);
                 break;
             default:
                 break;
@@ -175,8 +161,8 @@ public final class StudyCharts extends JPanel {
                     getHeight() - 27,
                     12,
                     color(method),
-                    method == SearchMethod.HYBRID);
-            x += method == SearchMethod.HYBRID ? 190 : 135;
+                    method == SearchMethod.LOCAL_SEARCH);
+            x += method == SearchMethod.LOCAL_SEARCH ? 190 : 135;
         }
     }
 
@@ -212,16 +198,7 @@ public final class StudyCharts extends JPanel {
             boolean first = true;
             g.setColor(color(method));
             if (method == SearchMethod.RANDOM) g.setStroke(new BasicStroke(5f));
-            else if (method == SearchMethod.TARGET)
-                g.setStroke(
-                        new BasicStroke(
-                                2f,
-                                BasicStroke.CAP_BUTT,
-                                BasicStroke.JOIN_MITER,
-                                10,
-                                new float[] {6, 5},
-                                0));
-            else g.setStroke(new BasicStroke(method == SearchMethod.HYBRID ? 3.8f : 1.8f));
+            else g.setStroke(new BasicStroke(method == SearchMethod.LOCAL_SEARCH ? 3.8f : 1.8f));
             for (SearchResult.Point point : trial.result().trace()) {
                 int x = left + (int) ((right - left) * Math.log10(1 + point.evaluations()) / maxX),
                         yy = y(point.score());
@@ -259,8 +236,7 @@ public final class StudyCharts extends JPanel {
                 false);
         text(
                 g,
-                "Evaluations (log10 scale); first-seed runs / dashed Target overlaps Random where"
-                        + " samples match",
+                "Evaluations (log10 scale); first-seed runs for each method",
                 left,
                 bottom + 43,
                 12,
@@ -318,14 +294,14 @@ public final class StudyCharts extends JPanel {
                     bottom + 24,
                     12,
                     color(method),
-                    method == SearchMethod.HYBRID);
+                    method == SearchMethod.LOCAL_SEARCH);
         }
         text(
                 g,
                 quality
                         ? "Bars = mean; whiskers = min/max. Exact is one deterministic run; other"
                                 + " methods use paired seeds."
-                        : "Mean evaluations per run. Random = 100,000; Target <= 500,000; SRS uses"
+                        : "Mean evaluations per run. Random = 100,000; Target <= 500,000; Local search uses"
                                 + " its batch stop rule.",
                 left,
                 getHeight() - 30,
@@ -372,7 +348,7 @@ public final class StudyCharts extends JPanel {
                     bottom + 24,
                     12,
                     color(method),
-                    method == SearchMethod.HYBRID);
+                    method == SearchMethod.LOCAL_SEARCH);
             text(g, selected.size() + " runs", x - 25, bottom + 45, 11, Visuals.MUTED, false);
         }
         text(
@@ -381,98 +357,6 @@ public final class StudyCharts extends JPanel {
                         + " measured score.",
                 left,
                 getHeight() - 20,
-                12,
-                Visuals.MUTED,
-                false);
-    }
-
-    private void space(Graphics2D g) {
-        long total = study.evaluator().data.searchSpace();
-        boolean complete = study.exact().completeEnumeration(total);
-        String[] names = {
-            "Total "
-                    + study.evaluator().data.servers().size()
-                    + "^"
-                    + study.evaluator().data.services().size(),
-            "Feasible (Exact)",
-            "Exact unique",
-            "Random unique",
-            "Target unique",
-            "SRS unique"
-        };
-        double[] values = {
-            total,
-            complete ? study.exact().feasible() : Double.NaN,
-            study.exact().unique(),
-            ExperimentRunner.summarize(study, SearchMethod.RANDOM, "main").unique(),
-            ExperimentRunner.summarize(study, SearchMethod.TARGET, "main").unique(),
-            ExperimentRunner.summarize(study, SearchMethod.HYBRID, "main").unique()
-        };
-        axes(g, 0, Math.log10(1 + total) * 1.18, "Assignments, log10(1 + count)");
-        for (int i = 0; i < values.length; i++) {
-            int x = center(i, values.length), width = Math.min(95, (right - left) / 9);
-            if (!Double.isFinite(values[i])) {
-                text(g, "Unknown", x - 30, top + 30, 12, Visuals.MUTED, false);
-                continue;
-            }
-            int yy = y(Math.log10(1 + values[i]));
-            g.setColor(i == 5 ? Visuals.TEAL : i == 1 ? new Color(142, 95, 205) : Visuals.BLUE);
-            g.fillRoundRect(x - width / 2, yy, width, bottom - yy, 6, 6);
-            text(
-                    g,
-                    String.format(Locale.ROOT, "%,.0f", values[i]),
-                    x - width / 2,
-                    yy - 10,
-                    12,
-                    Visuals.INK,
-                    true);
-            text(g, names[i], x - 51, bottom + 24, 10, Visuals.MUTED, false);
-        }
-        text(
-                g,
-                "Separate, overlapping sets: these bars are not stacked. Stochastic unique counts"
-                        + " are means across seeds.",
-                left,
-                getHeight() - 30,
-                12,
-                Visuals.MUTED,
-                false);
-    }
-
-    private void growth(Graphics2D g) {
-        text(
-                g,
-                "Week 1, slide 15 / four host choices for each service",
-                24,
-                54,
-                12,
-                Visuals.MUTED,
-                false);
-        axes(g, 0, 8, "log10(number of assignments)");
-        int oldX = 0, oldY = 0;
-        for (int n = 1; n <= 12; n++) {
-            int x = left + (right - left) * (n - 1) / 11, yy = y(n * Math.log10(4));
-            g.setColor(n == 12 ? Visuals.TEAL : Visuals.BLUE);
-            g.setStroke(new BasicStroke(3));
-            if (n > 1) g.drawLine(oldX, oldY, x, yy);
-            g.fillOval(x - 5, yy - 5, 10, 10);
-            text(g, String.valueOf(n), x - 4, bottom + 23, 12, Visuals.MUTED, n == 12);
-            oldX = x;
-            oldY = yy;
-        }
-        text(
-                g,
-                "n = 12: 4^12 = 16,777,216 assignments",
-                Math.max(left, right - 350),
-                top + 15,
-                15,
-                Visuals.TEAL,
-                true);
-        text(
-                g,
-                "Number of services n (1 to 12); each added service multiplies the space by four",
-                left,
-                getHeight() - 32,
                 12,
                 Visuals.MUTED,
                 false);
@@ -533,14 +417,6 @@ public final class StudyCharts extends JPanel {
         Files.write(directory.resolve("evaluations.csv"), effortRows, StandardCharsets.UTF_8);
         Files.write(directory.resolve("dots.csv"), dotRows, StandardCharsets.UTF_8);
         List<String> rows = new ArrayList<>();
-        rows.add("services,assignments,log10_assignments");
-        long count = 1;
-        for (int n = 1; n <= 12; n++) {
-            count *= 4;
-            rows.add(CsvFiles.row(n, count, Math.log10(count)));
-        }
-        Files.write(directory.resolve("growth.csv"), rows, StandardCharsets.UTF_8);
-        rows = new ArrayList<>();
         rows.add("method,evaluations,best_score,score_unit,protocol,seed");
         StudyCharts chart = new StudyCharts(Kind.CONVERGENCE);
         chart.set(study);
@@ -555,26 +431,6 @@ public final class StudyCharts extends JPanel {
                                 "main",
                                 trial.method() == SearchMethod.EXACT ? "N/A" : trial.seed()));
         Files.write(directory.resolve("convergence.csv"), rows, StandardCharsets.UTF_8);
-        rows = new ArrayList<>();
-        rows.add("set,count,unit,note");
-        long total = study.evaluator().data.searchSpace();
-        rows.add(CsvFiles.row("total", total, "assignments", "unconstrained search space"));
-        rows.add(
-                CsvFiles.row(
-                        "feasible",
-                        study.exact().completeEnumeration(total)
-                                ? study.exact().feasible()
-                                : "unknown",
-                        "assignments",
-                        "counted by complete enumeration"));
-        for (SearchMethod method : ExperimentRunner.MAIN_METHODS)
-            rows.add(
-                    CsvFiles.row(
-                            method,
-                            ExperimentRunner.summarize(study, method, "main").unique(),
-                            "mean unique assignments",
-                            "main protocol"));
-        Files.write(directory.resolve("space.csv"), rows, StandardCharsets.UTF_8);
     }
 
     public static void exportRun(Path directory, Evaluator e, SearchResult result)
@@ -584,7 +440,7 @@ public final class StudyCharts extends JPanel {
         png(directory.resolve("placement.png"), placement, 1400, 270);
         Visuals.Convergence convergence = new Visuals.Convergence();
         convergence.setBound(e.optimisticBound());
-        convergence.set(result.trace(), Dashboard.scoreLabel(e));
+        convergence.set(result.trace(), Ui.scoreLabel(e));
         png(directory.resolve("convergence.png"), convergence, 1400, 650);
     }
 }

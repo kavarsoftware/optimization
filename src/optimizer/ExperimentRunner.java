@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 /** Three named protocols keep early stopping separate from equal-budget evidence. */
 public final class ExperimentRunner {
     public static final SearchMethod[] MAIN_METHODS = {
-        SearchMethod.EXACT, SearchMethod.RANDOM, SearchMethod.TARGET, SearchMethod.HYBRID
+        SearchMethod.EXACT, SearchMethod.RANDOM, SearchMethod.LOCAL_SEARCH
     };
 
     public record Trial(long seed, SearchMethod method, SearchResult result, String protocol) {
@@ -75,69 +75,18 @@ public final class ExperimentRunner {
         trials.add(new Trial(0, SearchMethod.EXACT, exact, "main"));
         if (!exact.completeEnumeration(e.data.searchSpace()))
             return new Study(e, exact, trials, seeds, equalBudget);
-        SearchMethod[] randomMethods = {
-            SearchMethod.RANDOM, SearchMethod.TARGET, SearchMethod.HYBRID
-        };
+        if (seeds < 1) throw new IllegalArgumentException("Seed count must be positive");
         for (int i = 0; i < seeds && !cancel.getAsBoolean(); i++) {
             long seed = settings.seed() + i;
-            SearchResult stoppedSrs = null;
-            // Rotate the order to reduce the advantage of always running after JVM warmup.
-            for (int j = 0; j < randomMethods.length && !cancel.getAsBoolean(); j++) {
-                SearchMethod method = randomMethods[(i + j) % randomMethods.length];
-                int budget =
-                        method == SearchMethod.RANDOM
-                                ? 100_000
-                                : method == SearchMethod.TARGET ? 500_000 : settings.budget();
-                int patience = method == SearchMethod.HYBRID ? settings.patience() : 0;
-                say(progress, "Seed " + seed + " / " + method + " / main protocol");
-                SearchConfig config =
-                        new SearchConfig(
-                                seed,
-                                budget,
-                                settings.batchSize(),
-                                patience,
-                                settings.greediness(),
-                                settings.target());
-                SearchResult result = optimizer.run(e, method, config, null, cancel);
-                trials.add(new Trial(seed, method, result, "main"));
-                if (method == SearchMethod.HYBRID) stoppedSrs = result;
-            }
-            if (cancel.getAsBoolean()) break;
-            for (SearchMethod method :
-                    new SearchMethod[] {SearchMethod.RANDOM, SearchMethod.HYBRID}) {
-                say(progress, "Seed " + seed + " / " + method + " / equal budget " + equalBudget);
-                SearchConfig config =
-                        new SearchConfig(
-                                seed,
-                                equalBudget,
-                                settings.batchSize(),
-                                0,
-                                settings.greediness(),
-                                settings.target());
-                trials.add(
-                        new Trial(
-                                seed,
-                                method,
-                                optimizer.run(e, method, config, null, cancel),
-                                "equal_budget"));
+            SearchMethod[] methods = i % 2 == 0
+                    ? new SearchMethod[] {SearchMethod.LOCAL_SEARCH, SearchMethod.RANDOM}
+                    : new SearchMethod[] {SearchMethod.RANDOM, SearchMethod.LOCAL_SEARCH};
+            for (SearchMethod method : methods) {
                 if (cancel.getAsBoolean()) break;
-            }
-            if (!cancel.getAsBoolean() && stoppedSrs != null && stoppedSrs.evaluations() > 0) {
-                say(progress, "Seed " + seed + " / Random / budget matched to SRS stop");
-                SearchConfig matched =
-                        new SearchConfig(
-                                seed,
-                                stoppedSrs.evaluations(),
-                                settings.batchSize(),
-                                0,
-                                settings.greediness(),
-                                settings.target());
-                trials.add(
-                        new Trial(
-                                seed,
-                                SearchMethod.RANDOM,
-                                optimizer.run(e, SearchMethod.RANDOM, matched, null, cancel),
-                                "srs_stop_budget"));
+                say(progress, "Seed " + seed + " / " + method + " / budget " + settings.budget());
+                SearchConfig config = new SearchConfig(seed, settings.budget(),
+                        settings.batchSize(), 0, settings.greediness());
+                trials.add(new Trial(seed, method, optimizer.run(e, method, config, null, cancel), "main"));
             }
         }
         return new Study(e, exact, trials, seeds, equalBudget);
@@ -157,7 +106,7 @@ public final class ExperimentRunner {
     public static Summary summarize(Study study, SearchMethod method, String protocol) {
         List<Trial> selected = select(study.trials(), method, protocol);
         double[] values = new double[selected.size()];
-        int valid = 0, targetHits = 0, optimumHits = 0;
+        int valid = 0, optimumHits = 0;
         double evaluations = 0, unique = 0, runtime = 0, sum = 0;
         double optimum =
                 study.exact().provenOptimal(study.evaluator().data.searchSpace())
@@ -174,7 +123,6 @@ public final class ExperimentRunner {
                 double value = evaluation.score();
                 values[valid++] = value;
                 sum += value;
-                if (value <= result.config().target() + 1e-9) targetHits++;
                 if (Double.isFinite(optimum) && Math.abs(value - optimum) < 1e-9) optimumHits++;
             }
         }
@@ -199,7 +147,7 @@ public final class ExperimentRunner {
                 median,
                 valid == 0 ? Double.NaN : values[valid - 1],
                 valid < 2 ? Double.NaN : Math.sqrt(variance / (valid - 1)),
-                count == 0 ? 0 : 100.0 * targetHits / count,
+                count == 0 ? 0 : 100.0 * valid / count,
                 count == 0 ? 0 : 100.0 * optimumHits / count,
                 count == 0 ? 0 : evaluations / count,
                 count == 0 ? 0 : unique / count,
@@ -233,7 +181,7 @@ public final class ExperimentRunner {
         Files.createDirectories(directory);
         List<String> rows = new ArrayList<>();
         rows.add(
-                "protocol,seed,method,objective,score_unit,best_score,feasible,target_reached,evaluations,unique,unique_space_percent,runtime_ms,proven_optimal,stop_reason");
+                "protocol,seed,method,objective,score_unit,best_score,feasible,result_valid,evaluations,unique,unique_space_percent,runtime_ms,proven_optimal,stop_reason");
         int index = 0;
         for (Trial trial : study.trials()) {
             SearchResult result = trial.result();
@@ -243,11 +191,11 @@ public final class ExperimentRunner {
                             trial.protocol(),
                             trial.method() == SearchMethod.EXACT ? "N/A" : trial.seed(),
                             trial.method(),
-                            study.evaluator().objective,
+                            "ASSESSMENT",
                             ResultComparison.unit(study.evaluator()),
                             value == null ? "NA" : value.score(),
                             value != null,
-                            value != null && value.score() <= result.config().target() + 1e-9,
+                            value != null && value.feasible(),
                             result.evaluations(),
                             result.unique(),
                             100.0 * result.unique() / study.evaluator().data.searchSpace(),
@@ -269,8 +217,8 @@ public final class ExperimentRunner {
         Files.write(directory.resolve("trials.csv"), rows, StandardCharsets.UTF_8);
         rows = new ArrayList<>();
         rows.add(
-                "protocol,method,objective,score_unit,runs,feasible_runs,best,mean,median,worst,sample_sd,target_success_percent,optimum_hit_percent,mean_evaluations,evaluation_space_percent,mean_unique,unique_space_percent,mean_runtime_ms,best_gap_percent,confidence");
-        for (String protocol : new String[] {"main", "equal_budget", "srs_stop_budget"}) {
+                "protocol,method,objective,score_unit,runs,feasible_runs,best,mean,median,worst,sample_sd,feasible_percent,optimum_hit_percent,mean_evaluations,evaluation_space_percent,mean_unique,unique_space_percent,mean_runtime_ms,best_gap_percent,confidence");
+        for (String protocol : new String[] {"main"}) {
             for (SearchMethod method : MAIN_METHODS) {
                 Summary s = summarize(study, method, protocol);
                 if (s.runs() == 0) continue;
@@ -278,7 +226,7 @@ public final class ExperimentRunner {
                         CsvFiles.row(
                                 protocol,
                                 method,
-                                study.evaluator().objective,
+                                "ASSESSMENT",
                                 ResultComparison.unit(study.evaluator()),
                                 s.runs(),
                                 s.feasibleRuns(),
@@ -301,7 +249,6 @@ public final class ExperimentRunner {
         Files.write(directory.resolve("summary.csv"), rows, StandardCharsets.UTF_8);
         CsvFiles.writeData(directory.resolve("inputs"), study.evaluator().data);
         StudyCharts.export(directory.resolve("charts"), study);
-        if (study.evaluator().objective == Evaluator.Objective.ASSESSMENT)
-            AssessmentExperiments.writeTrialMetrics(directory, study);
+        AssessmentExperiments.writeTrialMetrics(directory, study);
     }
 }

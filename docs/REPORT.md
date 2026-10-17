@@ -1,121 +1,94 @@
-# Assessment benchmark report
+# Service Placement: assessment report
 
-The complete six-page report is **Assessment_Report.pdf**. This Markdown companion links the model and reproducible evidence. The original weighted report is **ORIGINAL_REPORT.md**, and its results are separately labeled in **RESULTS.md**.
+Java 17 / simplified implementation / 18 October 2026
 
-## Formulation
+## Problem and model
 
-A twelve-entry host vector chooses A–D for every indivisible service. CPU/RAM/disk/GPU/max-service-count and individual network SLAs are hard rules. Assessment mode has no minimum-two rule.
+Place exactly 12 indivisible services on the four heterogeneous servers A-D. The fixed inputs from `requirements.pdf` are preloaded from `data/assessment/`, editable in Configuration and resettable. A candidate is a 12-entry integer vector: entry i selects the host of service i. There are 4^12 = 16,777,216 possible complete assignments.
 
-B[j] = sum Work/Speed seconds; M = max B. Active power = Idle+(Peak-Idle)*CPU utilization if busy, otherwise zero. E=sum Power*B/3600 Wh. C=sum Price*B USD. Network latency = RTT + 1000*8*payloadMB/bandwidthMbPerSecond ms; L=mean, Lmax=maximum. Compute/wait time is not part of that network SLA.
+Every accepted placement must satisfy CPU, RAM, disk, GPU-slot and maximum-service-count reservations on each server, and every service's communication SLA. There is no minimum service count per server. An invalid placement cannot compensate through a lower objective.
 
-Minimize fixed J=0.35*M/30 +0.20*C/0.50 +0.15*E/5 +0.30*L/70, dimensionless. Normalizers are not hard limits.
+The evaluator implements the brief's equations:
 
-## Algorithm
+- Busy time B[j] = sum of Work[i]/Speed[j] for services assigned to j, in seconds.
+- Makespan M = max B[j]. The timeline executes services in ascending ID order.
+- CPU utilization U[j] = reserved CPU / server CPU capacity.
+- Active power P[j] = Idle[j] + (Peak[j]-Idle[j])*U[j], or zero for an empty server.
+- Energy E = sum P[j]*B[j]/3600 Wh. Cost C = sum Price[j]*B[j] USD.
+- Network latency = RTT[j] + 1000*8*PayloadMB[i]/BandwidthMbPerSec[j] ms.
+- L is the mean network latency; Lmax is its maximum.
+- Minimize J = 0.35*M/30 + 0.20*C/0.50 + 0.15*E/5 + 0.30*L/70.
 
-SRS constructs randomized resource/GPU/SLA-compatible starts, tests moves/swaps with the shared evaluator, accepts strict feasible improvement, and restarts at local optima. A complete 10,000-evaluation stagnant batch stops the default patience-one search, within a 20,000 cap. Greediness/batch/patience/cap are adjustable. Repeated and infeasible complete evaluations count; abandoned partial starts are separate. Exact scans all vectors; Random uses 100,000; Target stops at J<=0.8 or 500,000.
+The scales are normalizers, not hard limits. Network latency excludes compute and waiting time. Simulated seconds, network milliseconds and algorithm wall-clock time are separate quantities.
 
-Real pause/step/resume gates evaluations. Presentation waits are excluded from active algorithm runtime. Current and best views share actual event data, and recorded replay is separate.
+## Optimization and feasibility
 
-## Evidence
+The main method is restart local search with randomized greedy construction, a GRASP-style method. It ranks restricted services early, then randomly selects among promising compatible servers with enough remaining resources. Greediness determines the width of that choice. Every fifth construction allows the full compatible range to maintain exploration. Failed partial constructions are abandoned and counted separately; a bounded failure limit prevents endless reconstruction.
 
-# Assessment results — objective J, assessment-srs-3.0
+```text
+best = none
+while budget remains and not stopped:
+    current = construct a resource- and SLA-compatible placement
+    discard an unsuccessful partial construction
+    evaluate current and update best if feasible and better
+    repeat:
+        evaluate moving each service to another server
+        evaluate swapping pairs assigned to different servers
+        select the best strict feasible improvement
+        stop this descent if no neighbor improves
+        current = selected improvement
+    restart construction
+return best feasible placement and stop reason
+```
 
-These results use the PDF assessment dataset and fixed normalized J, with GPU, maximum-service-count and network SLA constraints. They do not use the old weighted-latency formula. Seeds: 2026–2045; Linux amd64, Java 17.0.20.1, 8 processors reported, 512 MiB heap limit. Date: 17 October 2026.
+The evaluator checks every complete candidate. Only feasible candidates can replace the incumbent. Invalid and repeated complete evaluations consume budget; partial construction failures do not. The evaluation cap bounds search. Batch/patience optionally stop after consecutive batches without improvement; patience zero disables early stopping. Same inputs, seed and settings reproduce search results. Stop, Pause, Resume and Step control real evaluations.
 
-The main protocol has Exact once, Random 100,000, Target <=0.8 or 500,000 attempts, and SRS cap20,000/batch10,000/patience1/greediness0.35. Target success means J<=0.8; it is not an optimum hit. All stochastic returned results were feasible. Scores are dimensionless J. Time is active search wall time, excludes display waits/export, varies by machine/JVM; 0 ms means less than 1 ms.
+Random samples complete host vectors and retains its best feasible placement. It is a transparent comparator, not the main optimizer. Exact enumerates every vector separately and never passes its answer to either approximate method. Only completed enumeration can prove an optimum or infeasibility; a heuristic failure is inconclusive. Aggregate resource shortages can also prove infeasibility early.
 
-| Method | Best J | Mean J | Worst J | Target success | Mean evaluations | Calls / space | Mean ms | Proven optimal? |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Exact Search | 0.715154 | 0.715154 | 0.715154 | 100% | 16,777,216 | 100.000000% | 2397.00 | Yes: complete scan |
-| Random Search | 0.721222 | 0.724076 | 0.728393 | 100% | 100,000 | 0.596046% | 96.65 | No |
-| Target Search | 0.727454 | 0.770779 | 0.797635 | 100% | 469 | 0.002795% | 0.25 | No |
-| Smart Restart Search (SRS) | 0.715154 | 0.716057 | 0.716358 | 100% | 20,000 | 0.119209% | 12.35 | Best matches Exact in 5/20; no general guarantee |
+## Interface and verification
 
-| Method | Median J | Sample SD J | Optimum hit rate | Mean unique coverage |
-| --- | ---: | ---: | ---: | ---: |
-| Exact Search | 0.715154360 | N/A (one run) | 100% | 100.000000% |
-| Random Search | 0.723810274 | 0.002189638 | 0% | 0.594276% |
-| Target Search | 0.771874962 | 0.019029021 | 0% | 0.002795% |
-| Smart Restart Search (SRS) | 0.716357637 | 0.000534570 | 25% | 0.080522% |
+The application contains Configuration, Live search, Performance, Network/SLAs, Compute timeline, Assignments, Run record/log and Experiments. Current and best views use actual algorithm events. The UI samples early evaluations, improvements and periodic checkpoints; it does not display every fast evaluation. Resource figures are exact evaluated reservations. Animation moves service labels between real states. Charts show the best-J incumbent's J/L/M/E/C/Lmax, whose component measures may trade off even while J improves.
 
-Exact enumerated all 16,777,216 vectors and found **92,643 feasible placements**. The minimum is **J=0.7151543595803707**. Independent recursive enumeration confirmed the count and optimum. Its mapping (server indices A=0..D=3) is `[1,1,0,2,1,2,3,0,3,1,2,3]`: A={S03,S08}, B={S01,S02,S05,S10}, C={S04,S06,S11}, D={S07,S09,S12}.
+![Reference placement with resources and service latencies](screenshots/live.png)
 
-At that exact minimum: M=18.5 s, C=0.444950980392 USD, E=3.684492442810 Wh, L=49.188034188034 ms, Lmax=76.666666666667 ms; all 12 SLAs pass. The reference mapping gives J=0.856845071161, so the exact result is about 16.54% lower. The app evaluates the reference under current edits before claiming improvement; an infeasible reference has no improvement claim.
+![Sequential processing timeline](screenshots/timeline.png)
 
-SRS's 20,000-evaluation mean gap to Exact is about 0.1262%. Its own stop rule cannot prove optimality. Five main runs match the Exact result; others remain best found. At an equal 100,000 evaluations, SRS matches Exact in **18/20** runs and its mean J is **0.715274687343**, versus Random's **0.724076291660**. Random at the paired SRS stopping count (20,000) averages **0.727881183774**. Evaluation calls and unique coverage are reported separately because neighborhood revisits do not cover new assignments.
+Automated T1-T12 cover default feasibility, S06 on non-GPU A, 21/16 CPU overload, disabling C GPUs, capacity equality, seed reproducibility, invalid speed/capacity, timeline totals, S03 on C violating its SLA, invalid network inputs, bandwidth sensitivity and reference arithmetic. Additional regressions check equal budget handling, Exact's optimum/feasible count, real pause/step/resume and stop while paused. The headless Swing worker test also checks 12 displayed network rows and saved charts. See `docs/evidence/self-test.log`.
 
-## Budget sensitivity
+The supplied reference mapping reproduces J=0.856845071161, M=28.333333 s, C=0.449583 USD, E=3.927416 Wh, L=53.347863 ms and Lmax=76.666667 ms, with 12/12 SLAs passing. It is a numerical self-check, not an optimum claim.
 
-All other settings stay fixed; patience is disabled so the full requested budgets are used. Each row uses the same twenty seeds. One iteration means one complete candidate evaluation, not a GA generation.
+## Repeated experiments
 
-| Evaluation limit | Mean J | Best J | Sample SD J | Successful runs |
-| --- | ---: | ---: | ---: | ---: |
-| 20 | 0.759448633 | 0.739492449 | 0.013891781 | 20/20 |
-| 50 | 0.757675034 | 0.739492449 | 0.012365934 | 20/20 |
-| 100 | 0.741298540 | 0.726488354 | 0.008339910 | 20/20 |
-| 200 | 0.734308978 | 0.716357637 | 0.008005805 | 20/20 |
+Seeds 2026-2035, default assessment inputs, 20,000 complete evaluations for both local search and Random. Greediness=0.35; batch=10,000; patience is disabled to spend the same full budget. Method order alternates by seed to reduce fixed ordering effects. Exact runs once without a random seed. These results were generated from the simplified application; raw metrics, assignments, input snapshots and settings are in `results/assessment-study/`.
 
-## Network sensitivity
+- **Exact verification**: 1/1 feasible; best J=0.715154360; mean J=0.715154360; sample SD=nan; mean search time=5094.00 ms.
+- **Random baseline**: 10/10 feasible; best J=0.721231097; mean J=0.728570111; sample SD=0.006009098; mean search time=17.50 ms.
+- **Restart local search**: 10/10 feasible; best J=0.715154360; mean J=0.716237309; sample SD=0.000380510; mean search time=15.30 ms.
 
-Compare all runs under the same J, constraints, seed list and SRS settings. RTT is multiplied by 1.25, or bandwidth by 0.70; other data remain fixed. All reported results pass their edited network SLAs. These are seeded heuristic outcomes, not certified sensitivity optima.
+Exact's single deterministic run has no sample standard deviation (NaN in CSV means undefined). It finds 92,643 feasible assignments and minimum J=0.7151543595803707. At the optimum M=18.5 s, C=0.444950980392 USD, E=3.684492442810 Wh, L=49.188034188034 ms and Lmax=76.666667 ms, with zero SLA violations. Local search matches Exact in 1/10 main runs; otherwise it returns best found. Its mean score is better than Random's at the same budget, but this is evidence for this instance and parameter setting only.
 
-| Scenario | Feasible runs | Mean J | Mean L (ms) | Mean Lmax (ms) | Mean ms |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| default | 20/20 | 0.716056818 | 48.879380 | 76.666667 | 16.75 |
-| RTT_plus_25_percent | 20/20 | 0.763719590 | 57.072863 | 91.666667 | 13.80 |
-| bandwidth_minus_30_percent | 20/20 | 0.735108816 | 55.102778 | 83.809524 | 11.90 |
+![Objective comparison](../results/assessment-study/charts/quality.png)
 
-Higher communication delay worsens mean J/L/Lmax and can force different compatible placements. GPU demand occupies all three available slots, restricting S06/S09/S11 to C/D; SLAs restrict additional services from slower links. Throughput, power and price affect the selected load split. Only combined best J is monotone; its individual M/C/E/L measures can trade off.
+## Budget and network sensitivity
 
-## Evidence files
+Other settings and seeds are fixed; patience is off. Budget runs use 20, 50, 100 and 200 evaluations. Network scenarios retain the main 20,000-evaluation budget.
 
-- `results/assessment-study/summary.csv`, `trials.csv`: four-method/fair-budget statistics and raw outcomes.
-- `assessment-trials.csv`: J/M/C/E/L/Lmax/SLA counts for all 121 main/fair run records.
-- `assessment-sensitivity.csv` and summary: 80 budget runs and 60 network runs.
-- `runs/`, `budget-runs/`, `network-runs/`: full per-run settings, input snapshots, assignments, network margins, busy-time timeline and platform metadata. Total study records: 261.
-- `charts/*.png` / CSVs, `budget-sensitivity.png`, `network-sensitivity.png`: exported visual evidence.
-- `docs/evidence/assessment-independent-check.json`: independent development enumeration.
+- budget, budget 20: 10/10 feasible; mean J=0.759725669; mean L=52.3321 ms; mean Lmax=76.0000 ms.
+- budget, budget 50: 10/10 feasible; mean J=0.757385980; mean L=52.2698 ms; mean Lmax=76.0000 ms.
+- budget, budget 100: 10/10 feasible; mean J=0.740063501; mean L=51.1703 ms; mean Lmax=76.0000 ms.
+- budget, budget 200: 10/10 feasible; mean J=0.732769681; mean L=51.3606 ms; mean Lmax=76.3333 ms.
+- default, budget 20000: 10/10 feasible; mean J=0.716237309; mean L=48.8176 ms; mean Lmax=76.6667 ms.
+- RTT_plus_25_percent, budget 20000: 10/10 feasible; mean J=0.763719590; mean L=57.0729 ms; mean Lmax=91.6667 ms.
+- bandwidth_minus_30_percent, budget 20000: 10/10 feasible; mean J=0.735165882; mean L=55.3382 ms; mean Lmax=83.8095 ms.
 
-The Exact run is deterministic and has no seed; one run has no sample SD. The 20-seed samples are descriptive, not confidence intervals or a universal method ranking. Physical network validation, congestion, replicas and real cloud operation are outside this simulation. The original weighted-mode evidence remains separately labeled in `RESULTS.md`.
+![Budget sensitivity](../results/assessment-study/budget-sensitivity.png)
 
-# Assessment requirement and verification evidence
+![Network sensitivity](../results/assessment-study/network-sensitivity.png)
 
-Source: `Assessment_Latency.pdf` (six pages). The assessment mode uses its dataset, formulas and hard rules. Earlier user-requested weighted latency stays in a separate original mode.
+Larger search budgets generally improve the mean solution here, at greater computational effort. Increasing RTT or reducing bandwidth raises communication latency and can exclude hosts through SLA thresholds. The three required GPU slots consume all available C/D GPUs, restricting those services. Faster processing can lower makespan while a higher price or power increases cost/energy, so the combined objective balances these effects.
 
-| Requirement | Evidence |
-| --- | --- |
-| Exactly 12 indivisible services on A–D | Candidate int[12], valid-index/length checks |
-| All editable resource/throughput/power/price/network/service inputs | Configuration tables; reset PDF defaults; validated before search |
-| CPU/RAM/disk/GPU/maximum-count and SLA constraints | Shared Evaluator.measure, rejected trials never accepted |
-| Fixed J and M/C/E/L/Lmax quantities | Reference check, metrics, run metadata and assessment-trials.csv |
-| Genuine iterative optimizer and comparator | SRS moves/swaps/restarts; Exact enumeration; Random baseline |
-| Two algorithm-specific parameters | Greediness, batch and patience, plus seed/evaluation cap |
-| Start/pause/resume/stop/step/reset | SearchControl gates actual evaluations; automated pause/one-step/resume check |
-| Real current and best states | Linked event-based canvases, exact reservation totals, network labels, recorded replay |
-| Progress J/L and at least two other measures | Six performance panels; performance.csv/PNG |
-| Network/SLA view and rejections | Payload/RTT/bandwidth/transfer/network/SLA/margin/PASS-FAIL table, red rejection reason |
-| Ordered execution timeline | Ascending service ID, Work/Speed durations, B and M labels, CSV/PNG |
-| Repeated experiments | 20 seeds, statistics, Exact reference, Random comparator and fair budgets |
-| Budget and network sensitivity | 20/50/100/200 evaluations; RTT +25% and bandwidth -30%; identical seeds |
-| Submission | Source/JAR/build/run scripts; report; five-minute live-demo script; AI/reuse disclosure |
+## Limitations, reproducibility and credit
 
-## Required named tests
+This is the specified static simulation: no congestion, packet loss, concurrent network transfers, replicas or physical deployment. Ten seeds give descriptive results, not a universal algorithm ranking. Timings depend on the JVM and host; deliberate display pacing and pauses are excluded. Headless Java 17 compilation, packaged-JAR tests, chart export and component rendering were verified on macOS; native interactive use and Windows scripts still need a manual smoke check. A live demonstration is required; the script in `docs/DEMO.md` does not establish that it has been delivered.
 
-| Test | Automated assertion and expected result |
-| --- | --- |
-| T1 | Default SRS returns feasible best; every recorded accepted incumbent re-evaluates feasible |
-| T2 | S06 assigned to A rejected for GPU incompatibility |
-| T3 | S04 added to A with S01/S03/S07 gives 21 vCPU >16; rejected |
-| T4 | C GPU slots=0 leaves total 1 versus demand 3; necessary-condition infeasibility before search |
-| T5 | Reference A CPU demand 14 with cap14 is accepted at equality |
-| T6 | Same seed/version/inputs/settings reproduce assignment/evaluations/distinct count |
-| T7 | Speed zero or negative capacity rejected before optimization |
-| T8 | Timeline ordered Work/Speed totals equal B, and max total equals M |
-| T9 | S03 on C has 70 ms >60 ms SLA; rejected regardless of J |
-| T10 | Bandwidth zero or RTT -1 rejected before optimization |
-| T11 | Reduce A bandwidth with fixed reference; A service delays, mean L and J rise consistently |
-| T12 | Reference J/M/C/E/L/Lmax match PDF rounding and all 12 SLAs pass |
-
-`./run.sh --self-test` runs the old model/search/replay checks and these named tests. The saved log is in `evidence/self-test.log`. Independent development enumeration confirmed 92,643 feasible assessment assignments and J=0.7151543595803707; its evidence is `evidence/assessment-independent-check.json`.
-
-Additional GUI tests check worker completion, 12 network rows, autosaved charts, genuine pause/step/resume, and 200% layouts at 1536×795 and 1280×740 logical sizes. Source/build and native launch were tested on Linux Java 17. Windows/macOS, an IntelliJ UI session, physical projector and a teacher-delivered demo were not directly tested. No screen recording is claimed; PRESENTATION.md supplies the live-demo sequence.
+Reproduce with `./build.sh`, `./run.sh --self-test`, then `./run.sh --study 10 --out results/assessment-study`. The only runtime dependencies are Java's standard library, Swing and Java2D. The benchmark/formulas come from the supplied assessment brief. This project reuses the student's prior project and used AI coding assistance, including OpenAI Codex for simplification, tests and documentation. The student must review and explain the implementation and disclose assistance under institutional rules. The earlier implementation is preserved in `archive/previous-project.zip`; it is not part of the active build.

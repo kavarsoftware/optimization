@@ -35,7 +35,6 @@ public final class AssessmentTest {
                 s.ram(),
                 s.storage(),
                 rtt,
-                0,
                 gpu,
                 max,
                 speed,
@@ -46,7 +45,7 @@ public final class AssessmentTest {
     }
 
     private static Evaluator evaluator(ProblemData data) {
-        return new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
+        return new Evaluator(data);
     }
 
     private static void invalid(Runnable task, String label) {
@@ -64,10 +63,10 @@ public final class AssessmentTest {
         Evaluator e = evaluator(data);
         Candidate reference = ProblemData.referenceAssignment();
         Evaluation ref = e.evaluate(reference);
-        SearchConfig config = new SearchConfig(2026, 5000, 1000, 0, .35, .8);
+        SearchConfig config = new SearchConfig(2026, 5000, 1000, 0, .35);
         List<SearchEvent> events = new ArrayList<>();
         SearchResult result =
-                new Optimizer().run(e, SearchMethod.HYBRID, config, null, () -> false, events::add);
+                new Optimizer().run(e, SearchMethod.LOCAL_SEARCH, config, null, () -> false, events::add);
         check(
                 result.best() != null && e.evaluate(result.best()).feasible(),
                 "T1 default benchmark returns a feasible best");
@@ -98,7 +97,7 @@ public final class AssessmentTest {
                                 c.bandwidth()));
         SearchResult impossible =
                 new Optimizer()
-                        .run(evaluator(noGpu), SearchMethod.HYBRID, config, null, () -> false);
+                        .run(evaluator(noGpu), SearchMethod.LOCAL_SEARCH, config, null, () -> false);
         check(
                 impossible.best() == null
                         && impossible.stopReason().startsWith("Infeasible:")
@@ -120,7 +119,7 @@ public final class AssessmentTest {
         check(
                 evaluator(equality).evaluate(reference).feasible(),
                 "T5 exactly 14/14 vCPU is feasible");
-        SearchResult again = new Optimizer().run(e, SearchMethod.HYBRID, config, null, () -> false);
+        SearchResult again = new Optimizer().run(e, SearchMethod.LOCAL_SEARCH, config, null, () -> false);
         check(
                 Arrays.equals(result.best().copy(), again.best().copy())
                         && result.evaluations() == again.evaluations()
@@ -263,7 +262,7 @@ public final class AssessmentTest {
                                                 .run(
                                                         e,
                                                         SearchMethod.RANDOM,
-                                                        new SearchConfig(2026, 100, 10, 0, .35, .8),
+                                                        new SearchConfig(2026, 100, 10, 0, .35),
                                                         null,
                                                         control::stopped,
                                                         events::add,
@@ -313,7 +312,6 @@ public final class AssessmentTest {
                                     && Files.exists(dashboard.saved.resolve("performance.png")),
                             "Assessment GUI saves performance/timeline evidence");
                     dashboard.motion.stop();
-                    dashboard.replay.pause();
                 });
         String assignmentCsv = Files.readString(view.get().saved.resolve("assignment.csv"));
         check(

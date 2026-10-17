@@ -56,7 +56,6 @@ public final class CsvFiles {
                                 number(c, 2),
                                 number(c, 3),
                                 number(c, 4),
-                                0,
                                 integer(c, 5),
                                 integer(c, 6),
                                 number(c, 7),
@@ -66,17 +65,7 @@ public final class CsvFiles {
                                 number(c, 11)));
                 continue;
             }
-            if (c.size() != 6)
-                throw new IllegalArgumentException(
-                        "servers.csv needs 6 original or 12 assessment columns");
-            servers.add(
-                    new ProblemData.Server(
-                            c.get(0),
-                            number(c, 1),
-                            number(c, 2),
-                            number(c, 3),
-                            number(c, 4),
-                            number(c, 5)));
+            throw new IllegalArgumentException("servers.csv needs 12 assessment columns");
         }
         List<String> serviceLines =
                 Files.readAllLines(directory.resolve("services.csv"), StandardCharsets.UTF_8);
@@ -91,19 +80,13 @@ public final class CsvFiles {
                                 number(c, 1),
                                 number(c, 2),
                                 number(c, 3),
-                                0,
                                 number(c, 4),
                                 integer(c, 5),
                                 number(c, 6),
                                 number(c, 7)));
                 continue;
             }
-            if (c.size() != 5)
-                throw new IllegalArgumentException(
-                        "services.csv needs 5 original or 8 assessment columns");
-            services.add(
-                    new ProblemData.Service(
-                            c.get(0), number(c, 1), number(c, 2), number(c, 3), number(c, 4)));
+            throw new IllegalArgumentException("services.csv needs 8 assessment columns");
         }
         return new ProblemData(
                 directory.getFileName().toString(),
@@ -128,25 +111,7 @@ public final class CsvFiles {
 
     public static void writeData(Path directory, ProblemData data) throws IOException {
         Files.createDirectories(directory);
-        if (data.assessment()) {
-            writeAssessmentData(directory, data);
-            return;
-        }
-        try (var out =
-                Files.newBufferedWriter(directory.resolve("servers.csv"), StandardCharsets.UTF_8)) {
-            out.write("server,cpu_cores,ram_gb,storage_gb,latency_ms,demo_cost_per_cpu\n");
-            for (var s : data.servers())
-                out.write(
-                        row(s.name(), s.cpu(), s.ram(), s.storage(), s.latencyMs(), s.costPerCpu())
-                                + "\n");
-        }
-        try (var out =
-                Files.newBufferedWriter(
-                        directory.resolve("services.csv"), StandardCharsets.UTF_8)) {
-            out.write("service,cpu_cores,ram_gb,storage_gb,service_latency_ms\n");
-            for (var s : data.services())
-                out.write(row(s.name(), s.cpu(), s.ram(), s.storage(), s.latencyValue()) + "\n");
-        }
+        writeAssessmentData(directory, data);
     }
 
     private static void writeAssessmentData(Path folder, ProblemData data) throws IOException {
@@ -210,16 +175,6 @@ public final class CsvFiles {
         Files.write(directory.resolve("search-replay.csv"), rows, StandardCharsets.UTF_8);
     }
 
-    private static double weightedContribution(Evaluator e, int service, int server) {
-        double sum = 0;
-        for (ProblemData.Service s : e.data.services()) sum += s.latencyValue();
-        return sum == 0
-                ? Double.NaN
-                : e.data.services().get(service).latencyValue()
-                        * e.data.servers().get(server).latencyMs()
-                        / sum;
-    }
-
     public static List<String> metadata(Evaluator evaluator, SearchResult result) {
         Evaluation e = result.evaluation();
         List<String> metadata = new ArrayList<>();
@@ -233,9 +188,7 @@ public final class CsvFiles {
                         ? "REFERENCE_NO_SEARCH"
                         : result.method().name()
             },
-            {"objective", evaluator.objective.name()},
-            {"alpha", evaluator.alpha},
-            {"minimum_services", evaluator.minServices},
+            {"objective", "ASSESSMENT"},
             {
                 "seed",
                 result.method() == SearchMethod.EXACT
@@ -244,7 +197,6 @@ public final class CsvFiles {
             },
             {"budget", result.config().budget()},
             {"batch_size", result.config().batchSize()},
-            {"target_score", result.config().target()},
             {"score_unit", ResultComparison.unit(evaluator)},
             {"feasible", e != null && e.feasible()},
             {
@@ -390,38 +342,8 @@ public final class CsvFiles {
         Files.createDirectories(directory);
         writeData(directory.resolve("inputs"), evaluator.data);
         var e = result.evaluation();
-        if (evaluator.objective == Evaluator.Objective.ASSESSMENT) {
-            writeAssessmentResults(directory, evaluator, result);
-            Files.copy(
-                    directory.resolve("network_assignment.csv"),
-                    directory.resolve("assignment.csv"),
-                    StandardCopyOption.REPLACE_EXISTING);
-        } else {
-            try (var out =
-                    Files.newBufferedWriter(
-                            directory.resolve("assignment.csv"), StandardCharsets.UTF_8)) {
-                out.write(
-                        "service,server,cpu_cores,ram_gb,storage_gb,service_latency_ms,server_latency_ms,weighted_contribution_ms,total_additive_delay_ms\n");
-                if (result.best() != null)
-                    for (int i = 0; i < evaluator.data.services().size(); i++) {
-                        var s = evaluator.data.services().get(i);
-                        var host = evaluator.data.servers().get(result.best().server(i));
-                        out.write(
-                                row(
-                                                s.name(),
-                                                host.name(),
-                                                s.cpu(),
-                                                s.ram(),
-                                                s.storage(),
-                                                s.latencyValue(),
-                                                host.latencyMs(),
-                                                weightedContribution(
-                                                        evaluator, i, result.best().server(i)),
-                                                s.latencyValue() + host.latencyMs())
-                                        + "\n");
-                    }
-            }
-        }
+        writeAssessmentResults(directory, evaluator, result);
+        Files.copy(directory.resolve("network_assignment.csv"), directory.resolve("assignment.csv"), StandardCopyOption.REPLACE_EXISTING);
         try (var out =
                 Files.newBufferedWriter(
                         directory.resolve("convergence.csv"), StandardCharsets.UTF_8)) {

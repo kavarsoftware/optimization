@@ -25,7 +25,6 @@ public final class AssessmentExperiments {
                             s.ram(),
                             s.storage(),
                             s.latencyMs() * rttFactor,
-                            s.costPerCpu(),
                             s.gpu(),
                             s.maxServices(),
                             s.speed(),
@@ -43,11 +42,12 @@ public final class AssessmentExperiments {
     public static void additional(
             Path folder,
             Evaluator model,
-            long firstSeed,
+            SearchConfig settings,
             int seeds,
             Consumer<String> progress,
             BooleanSupplier cancel)
             throws Exception {
+        long firstSeed = settings.seed();
         List<Measurement> all = new ArrayList<>();
         for (int budget : new int[] {20, 50, 100, 200})
             for (int i = 0; i < seeds && !cancel.getAsBoolean(); i++) {
@@ -61,8 +61,8 @@ public final class AssessmentExperiments {
                         new Optimizer()
                                 .run(
                                         model,
-                                        SearchMethod.HYBRID,
-                                        new SearchConfig(firstSeed + i, budget, 10000, 0, .35, .8),
+                                        SearchMethod.LOCAL_SEARCH,
+                                        new SearchConfig(firstSeed + i, budget, settings.batchSize(), 0, settings.greediness()),
                                         null,
                                         cancel);
                 all.add(new Measurement("budget", firstSeed + i, budget, result));
@@ -79,7 +79,7 @@ public final class AssessmentExperiments {
                             : scenario.startsWith("RTT")
                                     ? networkVariant(model.data, 1.25, 1)
                                     : networkVariant(model.data, 1, .70);
-            Evaluator e = new Evaluator(data, 0, Evaluator.Objective.ASSESSMENT, .75);
+            Evaluator e = new Evaluator(data);
             for (int i = 0; i < seeds && !cancel.getAsBoolean(); i++) {
                 if (progress != null)
                     progress.accept(
@@ -88,11 +88,11 @@ public final class AssessmentExperiments {
                         new Optimizer()
                                 .run(
                                         e,
-                                        SearchMethod.HYBRID,
-                                        new SearchConfig(firstSeed + i, 20000, 10000, 1, .35, .8),
+                                        SearchMethod.LOCAL_SEARCH,
+                                        new SearchConfig(firstSeed + i, settings.budget(), settings.batchSize(), 0, settings.greediness()),
                                         null,
                                         cancel);
-                all.add(new Measurement(scenario, firstSeed + i, 20000, result));
+                all.add(new Measurement(scenario, firstSeed + i, settings.budget(), result));
                 CsvFiles.export(
                         folder.resolve("network-runs/" + scenario + "-" + (firstSeed + i)),
                         e,
@@ -130,7 +130,7 @@ public final class AssessmentExperiments {
                 new String[] {
                     "budget", "default", "RTT_plus_25_percent", "bandwidth_minus_30_percent"
                 })
-            for (int budget : new int[] {20, 50, 100, 200, 20000}) {
+            for (int budget : java.util.stream.IntStream.of(20, 50, 100, 200, settings.budget()).distinct().toArray()) {
                 List<Measurement> selected = select(all, scenario, budget);
                 if (selected.isEmpty()) continue;
                 double[] stats = stats(selected);
@@ -149,6 +149,7 @@ public final class AssessmentExperiments {
             }
         Files.write(
                 folder.resolve("assessment-sensitivity-summary.csv"), rows, StandardCharsets.UTF_8);
+        if (cancel.getAsBoolean()) return; // Preserve partial records without plotting missing scenarios.
         StudyCharts.png(
                 folder.resolve("budget-sensitivity.png"),
                 new SensitivityPlot(all, false),
@@ -230,19 +231,20 @@ public final class AssessmentExperiments {
         StringBuilder text =
                 new StringBuilder(
                         "\n"
-                            + "METHOD / BEST J / MEAN J / WORST J / TARGET HIT / MEAN EVALS / TIME"
+                            + "METHOD / BEST J / MEAN J / WORST J / FEASIBLE RUNS / MEAN EVALS / TIME"
                             + " ms / CONFIDENCE\n");
         for (SearchMethod method : ExperimentRunner.MAIN_METHODS) {
             ExperimentRunner.Summary s = ExperimentRunner.summarize(study, method, "main");
             text.append(
                     String.format(
                             Locale.ROOT,
-                            "%s / %.6f / %.6f / %.6f / %.1f%% / %.0f / %.2f / %s%n",
+                            "%s / %.6f / %.6f / %.6f / %d/%d / %.0f / %.2f / %s%n",
                             method,
                             s.best(),
                             s.mean(),
                             s.worst(),
-                            s.successRate(),
+                            s.feasibleRuns(),
+                            s.runs(),
                             s.evaluations(),
                             s.runtime(),
                             ExperimentRunner.confidence(study, s)));
@@ -268,7 +270,7 @@ public final class AssessmentExperiments {
                     g,
                     network
                             ? "NETWORK SENSITIVITY / identical seeds and search settings"
-                            : "BUDGET SENSITIVITY / SRS, paired seeds, patience off",
+                            : "BUDGET SENSITIVITY / Local search, paired seeds, patience off",
                     25,
                     32,
                     20,
@@ -295,7 +297,7 @@ public final class AssessmentExperiments {
                                     select(
                                             points,
                                             network ? scenarios[i] : "budget",
-                                            network ? 20000 : Integer.parseInt(scenarios[i])));
+                                            network ? points.stream().filter(m -> m.scenario().equals("default")).findFirst().orElseThrow().budget() : Integer.parseInt(scenarios[i])));
                     values[i] = stats[network ? panel == 0 ? 2 : panel == 1 ? 4 : 5 : 2];
                     max = Math.max(max, values[i]);
                 }

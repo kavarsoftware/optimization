@@ -33,7 +33,7 @@ public final class Visuals {
     }
 
     public static class Placement extends JPanel {
-        ProblemData data = ProblemData.demo();
+        ProblemData data = ProblemData.assessmentDefaults();
         Candidate candidate;
         Evaluation evaluation;
 
@@ -238,111 +238,5 @@ public final class Visuals {
         }
     }
 
-    public record Trade(double alpha, double delay, double cost) {}
 
-    public static class TradePlot extends JPanel {
-        List<Trade> points = List.of();
-
-        public TradePlot() {
-            setBackground(Color.WHITE);
-            setPreferredSize(new Dimension(600, 330));
-        }
-
-        public void set(List<Trade> points) {
-            this.points = List.copyOf(points);
-            repaint();
-        }
-
-        static boolean dominated(Trade p, List<Trade> all) {
-            for (Trade q : all)
-                if (q.cost() <= p.cost() + 1e-9
-                        && q.delay() <= p.delay() + 1e-9
-                        && (q.cost() < p.cost() - 1e-9 || q.delay() < p.delay() - 1e-9))
-                    return true;
-            return false;
-        }
-
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            super.paintComponent(graphics);
-            Graphics2D g = (Graphics2D) graphics.create();
-            quality(g);
-            text(g, "SAMPLED COST / DELAY TRADE-OFFS", 20, 28, 13, INK, true);
-            if (points.isEmpty()) {
-                text(
-                        g,
-                        "Run the sweep to compare stakeholder priorities",
-                        45,
-                        150,
-                        14,
-                        MUTED,
-                        false);
-                g.dispose();
-                return;
-            }
-            double xMin = Double.POSITIVE_INFINITY,
-                    xMax = 0,
-                    yMin = Double.POSITIVE_INFINITY,
-                    yMax = 0;
-            for (Trade p : points) {
-                xMin = Math.min(xMin, p.cost());
-                xMax = Math.max(xMax, p.cost());
-                yMin = Math.min(yMin, p.delay());
-                yMax = Math.max(yMax, p.delay());
-            }
-            xMin *= .94;
-            xMax *= 1.06;
-            yMin *= .94;
-            yMax *= 1.06;
-            if (xMax - xMin < 1e-6) xMax = xMin + 1;
-            if (yMax - yMin < 1e-6) yMax = yMin + 1;
-            int left = 64, right = getWidth() - 30, top = 54, bottom = getHeight() - 58;
-            for (int i = 0; i <= 4; i++) {
-                int x = left + (right - left) * i / 4, y = top + (bottom - top) * i / 4;
-                g.setColor(LINE);
-                g.drawLine(left, y, right, y);
-                g.drawLine(x, top, x, bottom);
-                text(
-                        g,
-                        String.format(Locale.ROOT, "%.2f", xMin + (xMax - xMin) * i / 4),
-                        x - 12,
-                        bottom + 21,
-                        10,
-                        MUTED,
-                        false);
-                text(
-                        g,
-                        String.format(Locale.ROOT, "%.1f", yMax - (yMax - yMin) * i / 4),
-                        12,
-                        y + 4,
-                        10,
-                        MUTED,
-                        false);
-            }
-            for (var p : points) {
-                int x = left + (int) ((right - left) * (p.cost() - xMin) / (xMax - xMin)),
-                        y = bottom - (int) ((bottom - top) * (p.delay() - yMin) / (yMax - yMin));
-                g.setColor(dominated(p, points) ? new Color(181, 190, 203) : TEAL);
-                g.fillOval(x - 6, y - 6, 12, 12);
-            }
-            text(
-                    g,
-                    "Illustrative cost (lower is better)",
-                    left + 50,
-                    bottom + 44,
-                    12,
-                    MUTED,
-                    false);
-            text(g, "Delay in ms", left, top - 8, 11, MUTED, false);
-            text(
-                    g,
-                    "Green = nondominated among sampled results",
-                    left + 110,
-                    top - 8,
-                    11,
-                    TEAL,
-                    false);
-            g.dispose();
-        }
-    }
 }

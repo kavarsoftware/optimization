@@ -1,5 +1,0 @@
-server,cpu_cores,ram_gb,storage_gb,latency_ms,demo_cost_per_cpu
-S1,48,96,1000,20,0.08
-S2,24,192,1200,35,0.05
-S3,16,64,4000,50,0.025
-S4,20,48,500,5,0.06

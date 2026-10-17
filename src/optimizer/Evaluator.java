@@ -1,317 +1,105 @@
 package optimizer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
-/** All methods call this same definition of feasibility and quality. */
+/** The assessment's hard constraints and equations, shared by search, UI and tests. */
 public final class Evaluator {
-    public enum Objective {
-        ASSESSMENT("Assessment objective J"),
-        WEIGHTED("Weighted latency (main)"),
-        LATENCY("Additive latency (optional)"),
-        COST("Illustrative CPU cost"),
-        BALANCED("Weighted delay / cost compromise");
-        private final String label;
-
-        Objective(String label) {
-            this.label = label;
-        }
-
-        public String toString() {
-            return label;
-        }
-    }
-
     public final ProblemData data;
-    public final int minServices;
-    public final Objective objective;
-    public final double alpha, delayScale, costScale;
-    private final double totalWeight;
-
-    public Evaluator(ProblemData data, int minServices, Objective objective, double alpha) {
-        if (minServices < 0 || minServices > data.services().size() / data.servers().size())
-            throw new IllegalArgumentException("Minimum services per server cannot be satisfied");
-        if (!Double.isFinite(alpha) || alpha < 0 || alpha > 1)
-            throw new IllegalArgumentException("Alpha must be in [0,1]");
-        if ((objective == Objective.ASSESSMENT) != data.assessment())
-            throw new IllegalArgumentException(
-                    "Assessment data must use the assessment J evaluator; original CSV modes are"
-                            + " separate");
+    public Evaluator(ProblemData data) {
+        if (!data.assessment() || data.servers().size() != 4 || data.services().size() != 12)
+            throw new IllegalArgumentException("The benchmark requires 4 servers and 12 services");
         this.data = data;
-        this.minServices = minServices;
-        this.objective = objective;
-        this.alpha = alpha;
-        double weights = 0, cpu = 0, highestDelay = 0, highestPrice = 0;
-        for (ProblemData.Service service : data.services()) {
-            weights += service.latencyValue();
-            cpu += service.cpu();
-        }
-        for (ProblemData.Server server : data.servers()) {
-            highestDelay = Math.max(highestDelay, server.latencyMs());
-            highestPrice = Math.max(highestPrice, server.costPerCpu());
-        }
-        totalWeight = weights;
-        if (objective != Objective.LATENCY && objective != Objective.ASSESSMENT && weights <= 0)
-            throw new IllegalArgumentException(
-                    "Weighted latency needs a positive sum of service latencies");
-        delayScale = Math.max(1, highestDelay);
-        costScale = Math.max(1e-9, cpu * highestPrice);
     }
-
-    /** Reuse these small arrays during enumeration instead of creating millions of objects. */
+    /** Arrays are reused during Exact's full enumeration. */
     static final class Work {
-        final double[] cpu, ram, storage, busy, power;
-        final int[] gpu;
-        double[] latencies;
-        double makespan, energy, worst;
-        int sla;
-        final int[] count;
+        final double[] cpu, ram, storage, busy, power, latencies;
+        final int[] gpu, count;
         final boolean details;
         final List<String> violations = new ArrayList<>();
         boolean feasible;
-        double delay, cost, score;
-
-        Work(int servers, boolean details) {
-            busy = new double[servers];
-            power = new double[servers];
-            gpu = new int[servers];
-            cpu = new double[servers];
-            ram = new double[servers];
-            storage = new double[servers];
-            count = new int[servers];
+        double makespan, energy, worst, delay, cost, score;
+        int sla;
+        Work(int servers, int services, boolean details) {
+            cpu = new double[servers]; ram = new double[servers]; storage = new double[servers];
+            busy = new double[servers]; power = new double[servers];
+            gpu = new int[servers]; count = new int[servers]; latencies = new double[services];
             this.details = details;
         }
     }
-
-    Work newWork(boolean details) {
-        return new Work(data.servers().size(), details);
-    }
-
+    Work newWork(boolean details) { return new Work(4, 12, details); }
     public Evaluation evaluate(Candidate candidate) {
         Work work = newWork(true);
         measure(candidate == null ? null : candidate.copy(), work);
         return snapshot(work);
     }
-
-    /** The fast path and the explanatory GUI path share every rule and formula below. */
-    void measure(int[] assignment, Work work) {
-        Arrays.fill(work.cpu, 0);
-        Arrays.fill(work.ram, 0);
-        Arrays.fill(work.storage, 0);
-        Arrays.fill(work.count, 0);
-        Arrays.fill(work.gpu, 0);
-        Arrays.fill(work.busy, 0);
-        Arrays.fill(work.power, 0);
-        if (work.latencies == null) work.latencies = new double[data.services().size()];
-        work.makespan = 0;
-        work.energy = 0;
-        work.worst = 0;
-        work.sla = 0;
-        work.violations.clear();
-        work.feasible = true;
-        work.delay = 0;
-        work.cost = 0;
-        if (assignment == null || assignment.length != data.services().size()) {
-            work.feasible = false;
-            work.score = Double.POSITIVE_INFINITY;
-            work.delay = Double.NaN;
-            if (work.details) work.violations.add("Assignment length must equal service count");
-            return;
-        }
-        for (int i = 0; i < assignment.length; i++) {
-            int s = assignment[i];
-            if (s < 0 || s >= data.servers().size()) {
-                work.feasible = false;
-                if (work.details)
-                    work.violations.add("Invalid server for " + data.services().get(i).name());
-                continue;
-            }
-            ProblemData.Service service = data.services().get(i);
-            ProblemData.Server server = data.servers().get(s);
-            work.cpu[s] += service.cpu();
-            work.ram[s] += service.ram();
-            work.storage[s] += service.storage();
-            work.count[s]++;
-            if (objective == Objective.ASSESSMENT) {
-                work.gpu[s] += service.gpu();
-                work.busy[s] += service.work() / server.speed();
-                double latency = networkLatency(i, s);
-                work.latencies[i] = latency;
-                work.delay += latency;
-                work.worst = Math.max(work.worst, latency);
-                if (latency > service.maxLatency() + 1e-9) {
-                    work.sla++;
-                    work.feasible = false;
-                    if (work.details)
-                        work.violations.add(
-                                service.name()
-                                        + ": network SLA exceeded ("
-                                        + latency
-                                        + " > "
-                                        + service.maxLatency()
-                                        + " ms)");
-                }
-                continue;
-            }
-            if (objective == Objective.LATENCY)
-                work.delay += service.latencyValue() + server.latencyMs();
-            else work.delay += service.latencyValue() * server.latencyMs();
-            work.cost += service.cpu() * server.costPerCpu();
-        }
-        for (int s = 0; s < work.count.length; s++) {
-            ProblemData.Server server = data.servers().get(s);
-            if (objective == Objective.ASSESSMENT) {
-                if (work.gpu[s] > server.gpu()) {
-                    work.feasible = false;
-                    if (work.details) work.violations.add(server.name() + ": GPU slots exceeded");
-                }
-                if (work.count[s] > server.maxServices()) {
-                    work.feasible = false;
-                    if (work.details)
-                        work.violations.add(server.name() + ": maximum service count exceeded");
-                }
-                work.makespan = Math.max(work.makespan, work.busy[s]);
-                work.power[s] =
-                        work.busy[s] > 0
-                                ? server.idlePower()
-                                        + (server.peakPower() - server.idlePower())
-                                                * work.cpu[s]
-                                                / server.cpu()
-                                : 0;
-                work.energy += work.power[s] * work.busy[s] / 3600.;
-                work.cost += server.busyPrice() * work.busy[s];
-            }
-            if (work.count[s] < minServices) {
-                work.feasible = false;
-                if (work.details)
-                    work.violations.add(server.name() + ": service count < " + minServices);
-            }
-            if (work.cpu[s] > server.cpu() + 1e-9) {
-                work.feasible = false;
-                if (work.details) work.violations.add(server.name() + ": CPU overload");
-            }
-            if (work.ram[s] > server.ram() + 1e-9) {
-                work.feasible = false;
-                if (work.details) work.violations.add(server.name() + ": RAM overload");
-            }
-            if (work.storage[s] > server.storage() + 1e-9) {
-                work.feasible = false;
-                if (work.details) work.violations.add(server.name() + ": storage overload");
-            }
-        }
-        work.delay /=
-                objective == Objective.LATENCY || objective == Objective.ASSESSMENT
-                        ? assignment.length
-                        : totalWeight;
-        double quality =
-                objective == Objective.ASSESSMENT
-                        ? assessmentScore(work.makespan, work.cost, work.energy, work.delay)
-                        : score(work.delay, work.cost);
-        work.score = work.feasible ? quality : Double.POSITIVE_INFINITY;
+    private void reject(Work w, String reason) {
+        w.feasible = false;
+        if (w.details) w.violations.add(reason);
     }
-
-    Evaluation snapshot(Work work) {
-        List<Evaluation.Usage> usage = new ArrayList<>();
-        List<Double> latencies = new ArrayList<>();
-        for (int s = 0; s < work.count.length; s++)
-            usage.add(
-                    new Evaluation.Usage(
-                            work.cpu[s],
-                            work.ram[s],
-                            work.storage[s],
-                            work.count[s],
-                            work.gpu[s],
-                            work.busy[s],
-                            work.power[s]));
-        if (objective == Objective.ASSESSMENT && work.latencies != null)
-            for (double latency : work.latencies) latencies.add(latency);
-        return new Evaluation(
-                work.feasible,
-                work.score,
-                work.delay,
-                work.cost,
-                usage,
-                work.violations,
-                work.makespan,
-                work.energy,
-                work.worst,
-                work.sla,
-                latencies);
+    void measure(int[] assignment, Work w) {
+        Arrays.fill(w.cpu, 0); Arrays.fill(w.ram, 0); Arrays.fill(w.storage, 0);
+        Arrays.fill(w.busy, 0); Arrays.fill(w.power, 0); Arrays.fill(w.gpu, 0);
+        Arrays.fill(w.count, 0); Arrays.fill(w.latencies, 0);
+        w.violations.clear(); w.feasible = true;
+        w.makespan = w.energy = w.worst = w.delay = w.cost = 0; w.sla = 0;
+        if (assignment == null || assignment.length != 12) {
+            reject(w, "Assign each of the 12 services exactly once");
+            w.score = Double.POSITIVE_INFINITY; w.delay = Double.NaN; return;
+        }
+        for (int i = 0; i < 12; i++) {
+            int j = assignment[i];
+            if (j < 0 || j >= 4) { reject(w, "Invalid server for service " + (i+1)); continue; }
+            var service = data.services().get(i);
+            var server = data.servers().get(j);
+            w.cpu[j] += service.cpu(); w.ram[j] += service.ram(); w.storage[j] += service.storage();
+            w.gpu[j] += service.gpu(); w.count[j]++;
+            w.busy[j] += service.work() / server.speed();
+            double latency = networkLatency(i, j);
+            w.latencies[i] = latency; w.delay += latency; w.worst = Math.max(w.worst, latency);
+            if (latency > service.maxLatency() + 1e-9) {
+                w.sla++; reject(w, service.name() + ": network SLA exceeded (" + latency + " > " + service.maxLatency() + " ms)");
+            }
+        }
+        for (int j = 0; j < 4; j++) {
+            var server = data.servers().get(j);
+            if (w.cpu[j] > server.cpu() + 1e-9) reject(w, server.name() + ": CPU overload");
+            if (w.ram[j] > server.ram() + 1e-9) reject(w, server.name() + ": RAM overload");
+            if (w.storage[j] > server.storage() + 1e-9) reject(w, server.name() + ": storage overload");
+            if (w.gpu[j] > server.gpu()) reject(w, server.name() + ": GPU slots exceeded");
+            if (w.count[j] > server.maxServices()) reject(w, server.name() + ": maximum service count exceeded");
+            w.makespan = Math.max(w.makespan, w.busy[j]);
+            w.power[j] = w.busy[j] == 0 ? 0 : server.idlePower() + (server.peakPower()-server.idlePower())*w.cpu[j]/server.cpu();
+            w.energy += w.power[j] * w.busy[j] / 3600;
+            w.cost += server.busyPrice() * w.busy[j];
+        }
+        w.delay /= 12;
+        w.score = w.feasible ? assessmentScore(w.makespan, w.cost, w.energy, w.delay) : Double.POSITIVE_INFINITY;
     }
-
+    Evaluation snapshot(Work w) {
+        var usage = new ArrayList<Evaluation.Usage>();
+        var latencies = new ArrayList<Double>();
+        for (int j = 0; j < 4; j++) usage.add(new Evaluation.Usage(w.cpu[j], w.ram[j], w.storage[j], w.count[j], w.gpu[j], w.busy[j], w.power[j]));
+        for (double latency : w.latencies) latencies.add(latency);
+        return new Evaluation(w.feasible, w.score, w.delay, w.cost, usage, w.violations, w.makespan, w.energy, w.worst, w.sla, latencies);
+    }
     public double networkLatency(int service, int server) {
-        return data.servers().get(server).latencyMs()
-                + 1000.
-                        * 8.
-                        * data.services().get(service).payload()
-                        / data.servers().get(server).bandwidth();
+        return data.servers().get(server).latencyMs() + 8000 * data.services().get(service).payload() / data.servers().get(server).bandwidth();
     }
-
-    public static double assessmentScore(
-            double makespan, double cost, double energy, double latency) {
-        return .35 * makespan / 30. + .20 * cost / .50 + .15 * energy / 5. + .30 * latency / 70.;
+    public static double assessmentScore(double makespan, double cost, double energy, double latency) {
+        return .35 * makespan / 30 + .20 * cost / .50 + .15 * energy / 5 + .30 * latency / 70;
     }
-
-    public boolean compatible(int serviceIndex, int serverIndex) {
-        ProblemData.Service service = data.services().get(serviceIndex);
-        ProblemData.Server server = data.servers().get(serverIndex);
-        return service.cpu() <= server.cpu() + 1e-9
-                && service.ram() <= server.ram() + 1e-9
-                && service.storage() <= server.storage() + 1e-9
-                && (objective != Objective.ASSESSMENT
-                        || service.gpu() <= server.gpu()
-                                && server.maxServices() > 0
-                                && networkLatency(serviceIndex, serverIndex)
-                                        <= service.maxLatency() + 1e-9);
+    public boolean compatible(int i, int j) {
+        var service = data.services().get(i); var server = data.servers().get(j);
+        return service.cpu() <= server.cpu() + 1e-9 && service.ram() <= server.ram() + 1e-9
+                && service.storage() <= server.storage() + 1e-9 && service.gpu() <= server.gpu()
+                && server.maxServices() > 0 && networkLatency(i,j) <= service.maxLatency() + 1e-9;
     }
-
-    public double score(double delay, double cost) {
-        switch (objective) {
-            case COST:
-                return cost;
-            case BALANCED:
-                return alpha * delay / delayScale + (1 - alpha) * cost / costScale;
-            default:
-                return delay;
-        }
+    /** A ranking estimate for construction; the complete evaluator decides final quality. */
+    public double contribution(int i, int j) {
+        var service = data.services().get(i); var server = data.servers().get(j);
+        double busy = service.work() / server.speed();
+        double power = server.idlePower() + (server.peakPower()-server.idlePower())*service.cpu()/server.cpu();
+        return assessmentScore(busy, server.busyPrice()*busy, power*busy/3600, networkLatency(i,j)/12);
     }
-
-    /** Greedy ranking uses the same per-service contribution as the final score. */
-    public double contribution(int serviceIndex, int serverIndex) {
-        ProblemData.Service service = data.services().get(serviceIndex);
-        ProblemData.Server server = data.servers().get(serverIndex);
-        if (objective == Objective.ASSESSMENT) {
-            double busy = service.work() / server.speed();
-            double power =
-                    server.idlePower()
-                            + (server.peakPower() - server.idlePower())
-                                    * service.cpu()
-                                    / server.cpu();
-            return assessmentScore(
-                    busy,
-                    server.busyPrice() * busy,
-                    power * busy / 3600.,
-                    networkLatency(serviceIndex, serverIndex) / data.services().size());
-        }
-        double delay;
-        if (objective == Objective.LATENCY)
-            delay = (service.latencyValue() + server.latencyMs()) / data.services().size();
-        else delay = service.latencyValue() * server.latencyMs() / totalWeight;
-        return score(delay, service.cpu() * server.costPerCpu());
-    }
-
-    /** This deliberately ignores capacity and count limits, so it cannot prove optimality. */
-    public double optimisticBound() {
-        if (objective == Objective.ASSESSMENT)
-            return 0; // All four nonnegative terms make zero a safe weak bound.
-        double bound = 0;
-        for (int i = 0; i < data.services().size(); i++) {
-            double best = Double.POSITIVE_INFINITY;
-            for (int s = 0; s < data.servers().size(); s++)
-                best = Math.min(best, contribution(i, s));
-            bound += best;
-        }
-        return bound;
-    }
+    public double optimisticBound() { return 0; }
 }
