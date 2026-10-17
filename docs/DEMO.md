@@ -12,7 +12,7 @@ J combines makespan, cost, energy and mean network latency with the fixed weight
 
 Our method builds a feasible random greedy placement, tries moving one service or swapping two, accepts an improvement, and restarts when stuck. Greediness changes the range of construction choices. Batch and patience stop a search after no improvement. The cap bounds total complete evaluations.
 
-Click Start, Pause, Step and Resume. Show Current trial and Best feasible. Invalid trials can be displayed, but never become the best solution. Show the Performance and Compute timeline tabs. Each timeline duration is Work/Speed, in ascending service ID.
+Click Start, Pause, Step and Resume. Show Current trial and Best feasible. Invalid trials can be displayed, but never become the best solution. Show the Performance and Compute timeline views. Each timeline duration is Work/Speed, in ascending service ID.
 
 ## 2:15-3:15 — Evidence
 

@@ -141,47 +141,60 @@ public final class AssessmentDashboard extends JPanel {
     JPanel controlRows, searchSettings, metricBoxes;
 
     public AssessmentDashboard() {
-        super(new BorderLayout(0, 8));
+        super(new BorderLayout());
+        Ui.install();
         setBackground(BACK);
-        setBorder(new EmptyBorder(10, 16, 10, 16));
-        JPanel header = Ui.panel(new BorderLayout(12, 0));
-        header.setBorder(null);
-        JLabel title = new JLabel("Service Placement Lab / Assessment benchmark");
-        title.setFont(new Font("SansSerif", Font.BOLD, 23));
+        JPanel workspace = Ui.panel(new BorderLayout(0, 20));
+        workspace.setBorder(new EmptyBorder(24, 28, 16, 28));
+        JPanel heading = Ui.panel(new BorderLayout());
+        JPanel titles = Ui.panel(new GridLayout(2, 1, 0, 5));
+        JLabel title = new JLabel("Service placement");
+        title.setFont(Ui.font(Font.BOLD, 28));
         title.setForeground(INK);
-        header.add(title, BorderLayout.CENTER);
-        add(header, BorderLayout.NORTH);
-        JPanel body = Ui.panel(new BorderLayout(0, 7));
-        body.setBorder(null);
+        JLabel subtitle = new JLabel("Explore a better home for every service.");
+        subtitle.setFont(Ui.font(Font.PLAIN, 13));
+        subtitle.setForeground(MUTED);
+        titles.add(title);
+        titles.add(subtitle);
+        heading.add(titles, BorderLayout.CENTER);
+        heading.add(Ui.badge("12 SERVICES  /  4 SERVERS", TEAL), BorderLayout.EAST);
+        workspace.add(heading, BorderLayout.NORTH);
+        JPanel body = Ui.panel(new BorderLayout(0, 20));
         body.add(controls(), BorderLayout.NORTH);
-        tabs.setFont(new Font("SansSerif", Font.BOLD, 13));
+        Ui.hideTabs(tabs);
         tabs.addTab("Live search", live());
         tabs.addTab("Configuration", configuration());
         tabs.addTab("Performance", progress);
-        tabs.addTab("Network / SLAs", Ui.scrollTable(slaTable(networkModel, 9)));
+        tabs.addTab("Network & SLAs", Ui.scrollTable(slaTable(networkModel, 9)));
         tabs.addTab("Compute timeline", timeline);
         tabs.addTab("Assignments", Ui.scrollTable(slaTable(assignmentModel, 8)));
-        tabs.addTab("Run record / log", records());
+        tabs.addTab("Run history", records());
         tabs.addTab("Experiments", experiments());
-        tabs.addChangeListener(
-                event -> {
-                    boolean experimentsVisible = tabs.getSelectedIndex() == 7;
-                    searchSettings.setVisible(!experimentsVisible);
-                    metricBoxes.setVisible(!experimentsVisible);
-                    body.revalidate();
-                });
+        tabs.addChangeListener(event -> {
+            boolean show = tabs.getSelectedIndex() != 7 && tabs.getSelectedIndex() != 1;
+            searchSettings.setVisible(show);
+            metricBoxes.setVisible(show);
+            body.revalidate();
+        });
         body.add(tabs, BorderLayout.CENTER);
-        add(body, BorderLayout.CENTER);
-        JPanel footer = Ui.panel(new GridLayout(2, 1));
-        footer.setBorder(null);
-        status.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        proof.setFont(new Font("SansSerif", Font.BOLD, 12));
+        workspace.add(body, BorderLayout.CENTER);
+        JPanel footer = Ui.panel(new GridLayout(2, 1, 0, 5));
+        proof.setFont(Ui.font(Font.BOLD, 11));
         proof.setForeground(TEAL);
+        status.setFont(Ui.font(Font.PLAIN, 11));
+        status.setForeground(MUTED);
         footer.add(proof);
         footer.add(status);
-        add(footer, BorderLayout.SOUTH);
+        workspace.add(footer, BorderLayout.SOUTH);
+        add(Ui.navigation(tabs), BorderLayout.WEST);
+        add(workspace, BorderLayout.CENTER);
+        Ui.styleTabs(states);
+        Ui.styleTabs(studyViews);
+        Ui.styleCombo(method);
         for (JTextArea area : new JTextArea[] {log, record, experimentLog}) {
             area.setEditable(false);
+            area.setBackground(Color.WHITE);
+            area.setForeground(INK);
             area.setFont(new Font("Monospaced", Font.PLAIN, 12));
             area.setLineWrap(true);
             area.setWrapStyleWord(true);
@@ -231,6 +244,7 @@ public final class AssessmentDashboard extends JPanel {
         experiments.addActionListener(e -> experiment());
         method.addActionListener(e -> updateMethodControls());
         updateMethodControls();
+        Ui.polishScrollbars(this);
     }
 
     private void updateMethodControls() {
@@ -264,8 +278,7 @@ public final class AssessmentDashboard extends JPanel {
                                                     model.getValueAt(
                                                             table.convertRowIndexToModel(row),
                                                             statusColumn));
-                            component.setBackground(
-                                    pass ? new Color(239, 252, 246) : new Color(255, 235, 239));
+                            component.setBackground(pass ? Color.WHITE : new Color(255, 241, 242));
                             component.setForeground(pass ? INK : new Color(173, 34, 61));
                         }
                         return component;
@@ -275,13 +288,12 @@ public final class AssessmentDashboard extends JPanel {
     }
 
     private JPanel controls() {
-        JPanel panel = Ui.panel(new BorderLayout(0, 5));
-        panel.setBorder(null);
-        JPanel rows = Ui.panel(new BorderLayout(0, 5));
+        JPanel panel = Ui.panel(new BorderLayout(0, 16));
+        JPanel rows = Ui.card(new BorderLayout(0, 14));
         controlRows = rows;
-        rows.setBorder(null);
+        rows.setBorder(new EmptyBorder(16, 18, 16, 18));
         JPanel first = Ui.flow();
-        first.add(new JLabel("Method"));
+        first.add(Ui.caption("OPTIMIZER"));
         first.add(method);
         for (JButton button : new JButton[] {start, pause, step, stop, reset, reference, export})
             first.add(button);
@@ -289,23 +301,23 @@ public final class AssessmentDashboard extends JPanel {
         JPanel second = Ui.flow();
         searchSettings = second;
         Ui.addField(second, "Seed", seed);
-        Ui.addField(second, "Eval cap", budget);
+        Ui.addField(second, "Budget", budget);
         Ui.addField(second, "Batch", batch);
         Ui.addField(second, "Patience", patience);
-        Ui.addField(second, "Greediness", greed);
-        Ui.addField(second, "View ms", pace);
+        Ui.addField(second, "Greed", greed);
+        Ui.addField(second, "Pace · ms", pace);
         rows.add(second, BorderLayout.CENTER);
         panel.add(rows, BorderLayout.NORTH);
-        JPanel boxes = new JPanel(new GridLayout(1, 6, 8, 0));
+        JPanel boxes = new JPanel(new GridLayout(1, 6, 12, 0));
         metricBoxes = boxes;
         boxes.setOpaque(false);
         String[] names = {
-            "BEST J / dimensionless",
-            "MAKESPAN M / seconds",
-            "COST C / USD",
-            "ENERGY E / Wh",
-            "MEAN L / ms",
-            "WORST Lmax / ms"
+            "OBJECTIVE J",
+            "MAKESPAN · s",
+            "COST · USD",
+            "ENERGY · Wh",
+            "MEAN LATENCY · ms",
+            "MAX LATENCY · ms"
         };
         for (int i = 0; i < 6; i++) {
             metrics[i] = new JLabel("--");
@@ -319,12 +331,16 @@ public final class AssessmentDashboard extends JPanel {
         JPanel panel = Ui.panel(new BorderLayout(0, 5));
         panel.setBorder(null);
         JPanel labels = Ui.panel(new GridLayout(2, 1));
-        labels.setBorder(new EmptyBorder(5, 12, 5, 12));
+        labels.setBorder(new EmptyBorder(0, 4, 10, 4));
+        iteration.setFont(Ui.font(Font.PLAIN, 12));
+        iteration.setForeground(MUTED);
+        comparison.setFont(Ui.font(Font.BOLD, 12));
+        comparison.setForeground(INK);
         labels.add(iteration);
         labels.add(comparison);
         panel.add(labels, BorderLayout.NORTH);
-        states.addTab("Current trial / proposals may be rejected", currentCanvas);
-        states.addTab("Best feasible so far", bestCanvas);
+        states.addTab("Current candidate", Ui.scrollCanvas(currentCanvas));
+        states.addTab("Best placement", Ui.scrollCanvas(bestCanvas));
         panel.add(states, BorderLayout.CENTER);
         return panel;
     }
@@ -349,7 +365,9 @@ public final class AssessmentDashboard extends JPanel {
                                 "Services: reserved resources, work, payload and hard network SLA",
                                 Ui.scrollTable(serviceTable)));
         split.setResizeWeight(.37);
-        split.setDividerLocation(160);
+        split.setDividerLocation(270);
+        split.setBorder(null);
+        split.setDividerSize(10);
         panel.add(split, BorderLayout.CENTER);
         return panel;
     }
@@ -372,6 +390,7 @@ public final class AssessmentDashboard extends JPanel {
         studyViews.addTab(
                 "Statistics / confidence", Ui.scrollTable(Ui.wideTable(studyTable)));
         JTabbedPane charts = new JTabbedPane();
+        Ui.styleTabs(charts);
         for (StudyCharts.Kind kind : StudyCharts.Kind.values()) {
             StudyCharts chart = new StudyCharts(kind);
             studyCharts.add(chart);

@@ -150,7 +150,7 @@ public final class AssessmentPlots extends JPanel {
     private void drawTimeline(Graphics2D g) {
         Visuals.text(
                 g,
-                "COMPUTE TIMELINE / services in ascending ID order",
+                "Compute timeline · services in ascending ID order",
                 24,
                 30,
                 18,

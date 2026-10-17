@@ -9,14 +9,14 @@ import javax.swing.*;
 
 /** Native Swing visuals. No chart library or network connection is required. */
 public final class Visuals {
-    public static final Color INK = new Color(25, 39, 62),
-            MUTED = new Color(103, 117, 137),
-            BLUE = new Color(56, 102, 232),
-            TEAL = new Color(0, 153, 134),
-            BACK = new Color(242, 245, 249),
-            LINE = new Color(224, 231, 239);
+    public static final Color INK = new Color(24, 32, 47),
+            MUTED = new Color(116, 124, 139),
+            BLUE = new Color(79, 70, 229),
+            TEAL = new Color(13, 148, 136),
+            BACK = new Color(246, 247, 250),
+            LINE = new Color(230, 233, 240);
     public static final Color[] HOSTS = {
-        BLUE, TEAL, new Color(142, 95, 205), new Color(224, 149, 34)
+        BLUE, TEAL, new Color(111, 126, 154), new Color(184, 137, 76)
     };
 
     static void quality(Graphics2D g) {
