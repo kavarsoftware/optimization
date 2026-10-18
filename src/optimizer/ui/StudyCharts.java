@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.ui;
+
+import optimizer.brain.*;
+import optimizer.experiments.*;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -371,7 +374,7 @@ public final class StudyCharts extends JPanel {
             throws Exception {
         Files.createDirectories(file.getParent());
         component.setSize(width, height);
-        Main.layout(component);
+        Visuals.layout(component);
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = image.createGraphics();
         component.printAll(g);

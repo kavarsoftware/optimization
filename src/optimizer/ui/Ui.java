@@ -1,6 +1,9 @@
-package optimizer;
+package optimizer.ui;
 
-import static optimizer.Visuals.*;
+import optimizer.brain.*;
+import optimizer.experiments.*;
+
+import static optimizer.ui.Visuals.*;
 import java.awt.*;
 import java.util.Locale;
 import javax.swing.*;

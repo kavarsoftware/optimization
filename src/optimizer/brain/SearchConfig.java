@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 /** Patience counts consecutive batches without improvement; zero disables early stopping. */
 public record SearchConfig(long seed, int budget, int batchSize, int patience, double greediness) {

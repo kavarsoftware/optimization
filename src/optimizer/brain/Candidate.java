@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 /**
  * One complete proposal: server index for every service. Defensive copies protect the incumbent.

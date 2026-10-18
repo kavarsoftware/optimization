@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.ui;
+
+import optimizer.brain.*;
+import optimizer.experiments.*;
 
 import java.awt.*;
 import java.awt.geom.*;
@@ -9,6 +12,14 @@ import javax.swing.*;
 
 /** Native Swing visuals. No chart library or network connection is required. */
 public final class Visuals {
+    /** Lay out chart components before offscreen rendering. */
+    static void layout(Container container) {
+        container.invalidate();
+        container.doLayout();
+        for (Component child : container.getComponents())
+            if (child instanceof Container nested) layout(nested);
+    }
+
     public static final Color INK = new Color(24, 32, 47),
             MUTED = new Color(116, 124, 139),
             BLUE = new Color(79, 70, 229),
@@ -19,13 +30,13 @@ public final class Visuals {
         BLUE, TEAL, new Color(111, 126, 154), new Color(184, 137, 76)
     };
 
-    static void quality(Graphics2D g) {
+    public static void quality(Graphics2D g) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(
                 RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
     }
 
-    static void text(
+    public static void text(
             Graphics2D g, String value, int x, int y, int size, Color color, boolean bold) {
         g.setColor(color);
         g.setFont(new Font("SansSerif", bold ? Font.BOLD : Font.PLAIN, size));

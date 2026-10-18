@@ -1,8 +1,10 @@
-package optimizer;
+package optimizer.brain;
+
+import optimizer.experiments.*;
 
 public final class SelfTest {
     private static int checks;
-    static void check(boolean condition, String label) {
+    public static void check(boolean condition, String label) {
         checks++;
         if (!condition) throw new AssertionError(label);
     }

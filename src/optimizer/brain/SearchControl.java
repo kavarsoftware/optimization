@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 /**
  * Cooperative control of real evaluations; waiting/presentation time is excluded from search time.

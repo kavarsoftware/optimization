@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.ui;
+
+import optimizer.brain.*;
+import optimizer.experiments.*;
 
 import java.awt.*;
 import java.nio.charset.StandardCharsets;
@@ -217,7 +220,7 @@ public final class AssessmentPlots extends JPanel {
                 true);
     }
 
-    static List<Integer> order(ProblemData data, Candidate candidate, int server) {
+    public static List<Integer> order(ProblemData data, Candidate candidate, int server) {
         List<Integer> order = new ArrayList<>();
         for (int i = 0; i < data.services().size(); i++)
             if (candidate.server(i) == server) order.add(i);

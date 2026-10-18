@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 /** An actual, sampled search decision. Animation never creates or evaluates extra candidates. */
 public record SearchEvent(

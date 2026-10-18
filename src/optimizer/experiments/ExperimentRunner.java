@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.experiments;
+
+import optimizer.brain.*;
+import optimizer.ui.*;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

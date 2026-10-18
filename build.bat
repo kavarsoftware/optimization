@@ -7,7 +7,7 @@ if defined JAVA_HOME set "task_javac=%JAVA_HOME%\bin\javac.exe"
 if defined JAVA_HOME set "task_jar=%JAVA_HOME%\bin\jar.exe"
 set "task_build=%TEMP%\placement-build-%RANDOM%-%RANDOM%"
 mkdir "%task_build%"
-"%task_javac%" -encoding UTF-8 --release 17 -d "%task_build%" src\optimizer\*.java
+"%task_javac%" -encoding UTF-8 --release 17 -d "%task_build%" src\optimizer\Main.java src\optimizer\brain\*.java src\optimizer\ui\*.java src\optimizer\experiments\*.java tests\optimizer\brain\*.java tests\optimizer\ui\*.java
 if errorlevel 1 goto failure
 "%task_jar%" --create --file ServerPlacementLab.jar --main-class optimizer.Main -C "%task_build%" optimizer
 if errorlevel 1 goto failure

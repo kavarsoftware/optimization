@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 public enum SearchMethod {
     LOCAL_SEARCH("Restart local search"), RANDOM("Random baseline"), EXACT("Exact verification");

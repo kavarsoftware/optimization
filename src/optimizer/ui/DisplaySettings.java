@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.ui;
+
+import optimizer.brain.*;
+import optimizer.experiments.*;
 
 /** Native desktop scaling by default, with an optional manual override. */
 public final class DisplaySettings {

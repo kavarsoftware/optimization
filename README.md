@@ -40,17 +40,18 @@ The Experiments tab runs 10 paired seeds, the same evaluation budget for local s
 
 Runs export settings, inputs, assignment, network SLA margins, timeline and charts. The current seeded evidence is in `results/assessment-study/`. Runtime varies by machine and excludes deliberate pause/display waits. UI events are samples of actual evaluations; every improvement and periodic checkpoints are retained. Step permits exactly one evaluation.
 
-## Source reading order
+## Code structure
 
-- `ProblemData.java`: benchmark inputs and validation.
-- `Candidate.java`: 12 server indices.
-- `Evaluator.java`: all hard constraints and the professor's formulas.
-- `Optimizer.java`: construction, moves/swaps, restarts, Random and Exact.
-- `SearchControl.java`: pause, resume, step and stop.
-- `AssessmentDashboard.java`: UI and background worker.
-- `AssessmentTest.java` / `SelfTest.java`: T1-T12 and regression checks.
+- `src/optimizer/Main.java`: application launcher and CLI wiring.
+- `src/optimizer/brain/`: optimization engine, constraints, input data, CSV I/O, search settings and control. No Swing or UI dependencies.
+- `src/optimizer/ui/`: dashboard, widgets, charts, rendering and display settings.
+- `src/optimizer/experiments/`: studies, comparisons and report generation; connects the engine to chart exports.
+- `tests/optimizer/brain/`: assessment and engine regression checks.
+- `tests/optimizer/ui/`: dashboard integration checks.
 
-The remaining files draw charts or save CSV evidence. They are support code, not additional optimization algorithms.
+Java packages mirror these folders (`optimizer.brain`, `optimizer.ui`, and `optimizer.experiments`). Tests use the corresponding implementation package so internal checks do not require exposing engine or widget details. Both build scripts compile the source and test folders and retain `--self-test` in the executable JAR. In an IDE, mark `src` as Sources Root and `tests` as Test Sources Root.
+
+Start with `brain/ProblemData.java`, `brain/Evaluator.java` and `brain/Optimizer.java` for the algorithm; `ui/AssessmentDashboard.java` handles presentation and its background worker.
 
 Read `docs/REPORT.md` for the report and `docs/DEMO.md` for a four-minute explanation.
 The previous code, data and documents are preserved in `archive/previous-project.zip` and are not built or used by this application. Old numerical reports describe different protocols and should not be submitted as current evidence.

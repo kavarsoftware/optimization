@@ -1,4 +1,7 @@
-package optimizer;
+package optimizer.ui;
+
+import optimizer.brain.*;
+import optimizer.experiments.*;
 
 import java.awt.*;
 import java.awt.geom.Point2D;

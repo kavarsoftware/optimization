@@ -1,4 +1,6 @@
-package optimizer;
+package optimizer.brain;
+
+
 
 import java.util.List;
 

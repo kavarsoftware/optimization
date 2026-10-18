@@ -1,5 +1,9 @@
 package optimizer;
 
+import optimizer.brain.*;
+import optimizer.ui.*;
+import optimizer.experiments.*;
+
 import java.awt.*;
 import java.nio.file.Path;
 import java.util.*;
@@ -82,10 +86,5 @@ Study uses equal budgets, patience off, and includes budget/network sensitivity.
             frame.setLocationRelativeTo(null);
             frame.setVisible(true);
         });
-    }
-    static void layout(Container container) {
-        container.invalidate();
-        container.doLayout();
-        for (Component child : container.getComponents()) if (child instanceof Container nested) layout(nested);
     }
 }
