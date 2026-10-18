@@ -422,6 +422,9 @@ public final class Optimizer {
         }
     }
 
+    /**
+     * Execution state shared across repeated restarts and the current optimization pass.
+     */
     static final class Context {
         final Evaluator e;
         final SearchMethod method;

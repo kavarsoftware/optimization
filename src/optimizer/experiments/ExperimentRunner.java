@@ -18,12 +18,18 @@ public final class ExperimentRunner {
         SearchMethod.EXACT, SearchMethod.RANDOM, SearchMethod.LOCAL_SEARCH
     };
 
+    /**
+     * One run under a given seed and optimization strategy, grouped into a protocol-specific study.
+     */
     public record Trial(long seed, SearchMethod method, SearchResult result, String protocol) {
         public Trial(long seed, SearchMethod method, SearchResult result) {
             this(seed, method, result, "main");
         }
     }
 
+    /**
+     * A complete study containing one exact reference run and all strategy trials sampled across seeds.
+     */
     public record Study(
             Evaluator evaluator,
             SearchResult exact,
@@ -35,6 +41,9 @@ public final class ExperimentRunner {
         }
     }
 
+    /**
+     * Aggregate statistics for a single method under a particular protocol.
+     */
     public record Summary(
             SearchMethod method,
             String protocol,

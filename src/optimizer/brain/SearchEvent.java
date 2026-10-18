@@ -19,6 +19,9 @@ public record SearchEvent(
         Evaluation bestEvaluation,
         boolean newBest,
         String detail) {
+    /**
+     * The milestone emitted by the optimizer as it samples, builds, or finalizes a solution.
+     */
     public enum Type {
         EXACT_SCAN,
         CONSTRUCT,

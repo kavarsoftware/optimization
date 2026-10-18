@@ -43,6 +43,9 @@ public final class Visuals {
         g.drawString(value, x, y);
     }
 
+    /**
+     * Draws a single compact host layout with resource bars and service labels.
+     */
     public static class Placement extends JPanel {
         ProblemData data = ProblemData.assessmentDefaults();
         Candidate candidate;
@@ -146,6 +149,9 @@ public final class Visuals {
         }
     }
 
+    /**
+     * Renders the best-so-far score over time for a completed optimization run.
+     */
     public static class Convergence extends JPanel {
         List<SearchResult.Point> points = List.of();
         String scoreLabel = "Weighted latency (ms)";

@@ -255,6 +255,9 @@ public final class AssessmentExperiments {
         return text.toString();
     }
 
+    /**
+     * Off-screen chart panel used to visualize budget and network sensitivity across repeated trials.
+     */
     private static final class SensitivityPlot extends JPanel {
         final List<Measurement> points;
         final boolean network;

@@ -7,6 +7,9 @@ import java.util.*;
 /** Known inputs, separate from the service-to-server decisions. Units: CPU cores, GB, ms. */
 public record ProblemData(
         String name, List<Server> servers, List<Service> services, boolean assessment) {
+    /**
+     * Hardware description for a single machine in the placement problem.
+     */
     public record Server(
             String name,
             double cpu,
@@ -22,6 +25,9 @@ public record ProblemData(
             double bandwidth) {
     }
 
+    /**
+     * Workload description for a single service that must be placed on a server.
+     */
     public record Service(
             String name,
             double cpu,

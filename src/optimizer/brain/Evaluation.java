@@ -27,6 +27,9 @@ public record Evaluation(
         this(feasible, score, delayMs, cost, usage, violations, 0, 0, delayMs, 0, List.of());
     }
 
+    /**
+     * Aggregate resource usage for a single host after a candidate assignment is evaluated.
+     */
     public record Usage(
             double cpu,
             double ram,
